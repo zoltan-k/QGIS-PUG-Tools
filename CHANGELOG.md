@@ -1,0 +1,83 @@
+# Changelog
+
+PUG Tools — QGIS plugin for creating and validating Romanian
+PUG/PUZ/PUD/PATJ/PMUD urban-planning GeoPackage projects. Validation rules
+follow the official validator at `datelocale.mdlpa.ro` (OMDLPA 904, PUG
+rules v3.0.0+).
+
+Only the milestones that are still relevant are listed. Earlier development
+versions (1.x) are summarized at the bottom.
+
+## 2.2.1.0
+
+- `package_updater`: layers of dropped tables are now removed by source
+  (including renamed layers), and a final sweep removes layers whose table no
+  longer exists, so reopened projects have no missing layers.
+- SBOM restructured (CycloneDX 1.5 + VEX); `dev/cpr_precheck.py` added for
+  pre-release dependency/vulnerability checks.
+
+## 2.2.0.0
+
+- Bundled template updated to published schema **3.1.0** (`sys__versiune`
+  reference layer, RLUD `Integer64`, lookup tables synced).
+- `package_updater` migrates `__versiune`, lookup tables,
+  `PlanSpatial.Stadiu` and RLUD column types.
+- Rules R10/R12/R16/R24/R30 aligned with the published rules.
+- "Actualizeaza pachetul" button added to the validation results dialog.
+- `SBOM.cdx.json` added.
+
+## 2.1.0.0
+
+- Double-clicking a validation result activates the layer, selects and zooms
+  to the feature and opens the attribute table filtered to it (no-op for
+  layer-level failures).
+
+## 2.0.x
+
+- PUZ and other non-PUG project types supported (`__versiune.tip` fixes;
+  PlanSpatial UAT-refetch action made robust; UAT name prefix removed; RLUD
+  text fields multiline).
+- `package_updater` backup no longer fails when the project and the GPKG are on
+  different drives (2.0.1.1).
+
+## 1.9.x
+
+- **1.9.2.0** — Bundled template updated to published schema 3.0.3 (`_siruta`
+  restructure, RLUD numeric columns); active-template staleness warning.
+- **1.9.1.x** — Toolbar reorganized; template editing moved into the About
+  dialog; icons moved to `ui/icons/`.
+- **1.9.0.x** — "Repara" one-button fixes for R18/20/21/26/27/31/32/33/34;
+  stale reference-table cache fixes in R13/R16/R20; `package_updater`
+  self-heals the `~vREF_SZF_ZRS_D` virtual reference layer.
+
+## 1.8.x
+
+- **1.8.8.0** — `package_updater` cleans up legacy reference tables,
+  repositions the REF group, repairs `layer_styles` corruption and syncs
+  missing template files.
+- **1.8.7.x** — Rules 35 and 36; R26/R27 boundary buffer + warning, R15
+  expiry fix; RLUD schema migration; reference layers no longer get styles
+  saved.
+- **1.8.6.x** — Rule 10 (GPKG structure conformance to the template);
+  `ZFPropusa.Arie_ZF` default fixed.
+- **1.8.5.x** — `~REF_UAT` is a persistent GPKG layer; R26 uses it;
+  `package_updater` self-heals `layer_styles` and re-adds missing reference
+  layers.
+- **1.8.0.0** — Package updater tool with mandatory pre-update backup.
+
+## Earlier (1.x) — summary
+
+- **1.7.0.0** — About panel (template/cache status, delete/refresh actions).
+- **1.6.0.0** — Administrative boundary of the chosen UAT fetched dynamically
+  (any county) instead of being bundled.
+- **1.5.x** — Rule ID and severity shown in the results table; selective
+  validation button.
+- **1.4.0.0** — Validation rules 12–34 implemented.
+- **1.3.5.4** — Starting point (rules 11, 19, 30).
+
+## Notes for contributors
+
+- Changes are verified against real QGIS (headless, Qt5 and Qt6 builds) and
+  not only by syntax checks.
+- Run `python dev/cpr_precheck.py` before a release to check the SBOM against
+  installed versions and known vulnerabilities.

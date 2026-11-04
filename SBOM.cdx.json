@@ -1,0 +1,985 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:7c1f3a52-96b4-4e0e-9d57-2a8b5c0e41d3",
+  "version": 2,
+  "metadata": {
+    "timestamp": "2026-11-04T00:00:00Z",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "Claude Code",
+          "author": "Anthropic",
+          "description": "SBOM maintained by hand; dev/cpr_precheck.py verifies it against the installed tools and the vulnerability databases before every commit."
+        }
+      ]
+    },
+    "component": {
+      "type": "application",
+      "bom-ref": "pkg:generic/pugtools",
+      "name": "PUG Tools",
+      "version": "2.2.1.0",
+      "description": "QGIS plugin (pure Python, no compiled code) that creates and validates Romanian PUG/PUZ/PUD/PATJ/PMUD GeoPackage projects. Version taken from metadata.txt.",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/zoltan-k/QGIS-PUG-Tools"
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "sbom:scope",
+        "value": "runtime dependencies, bundled data assets, external services, build/test/dev tooling (scope=excluded, property sbom:role=tooling)"
+      },
+      {
+        "name": "sbom:maintenance",
+        "value": "Update when metadata.txt, a bundled asset, a network endpoint or the tool set changes. Run: py -3.15 dev/cpr_precheck.py"
+      },
+      {
+        "name": "plugin:qgisMinimumVersion",
+        "value": "3.28"
+      },
+      {
+        "name": "plugin:supportsQt6",
+        "value": "True"
+      },
+      {
+        "name": "plugin:thirdPartyPipDependencies",
+        "value": "none"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "platform",
+      "bom-ref": "runtime-qgis",
+      "name": "QGIS (3.x LTR, Qt5)",
+      "version": "3.44.15",
+      "purl": "pkg:generic/qgis@3.44.15",
+      "description": "Host application for Qt5 users (plugin minimum: 3.28). Provides qgis.core, qgis.gui and qgis.PyQt. Not bundled; supplied by the user's installation. Also the Qt5 test host.",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://qgis.org"
+        }
+      ],
+      "properties": []
+    },
+    {
+      "type": "platform",
+      "bom-ref": "runtime-qgis-qt6",
+      "name": "QGIS (4.x, Qt6)",
+      "version": "4.2.3",
+      "purl": "pkg:generic/qgis@4.2.3",
+      "description": "Host application for Qt6 users. Also the Qt6 test host.",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://qgis.org"
+        }
+      ],
+      "properties": []
+    },
+    {
+      "type": "library",
+      "bom-ref": "runtime-pyqt5",
+      "name": "PyQt5 (via qgis.PyQt)",
+      "version": "5.15.11",
+      "purl": "pkg:pypi/pyqt5@5.15.11",
+      "description": "Imported only via qgis.PyQt.* (QtCore, QtGui, QtWidgets, QtNetwork). Ships with QGIS 3.x (Qt 5.15.13).",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "runtime-pyqt6",
+      "name": "PyQt6 (via qgis.PyQt)",
+      "version": "6.11.0",
+      "purl": "pkg:pypi/pyqt6@6.11.0",
+      "description": "Imported only via qgis.PyQt.*. Ships with QGIS 4.x (Qt 6.11.0).",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "runtime-gdal",
+      "name": "GDAL/OGR Python bindings (osgeo.ogr, osgeo.osr)",
+      "version": "3.13.3",
+      "purl": "pkg:pypi/gdal@3.13.3",
+      "description": "Used for GeoPackage reads, geometry tests (rules 24-34), DeleteLayer and field-type inspection. Ships with QGIS; plugin does not pin a version.",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://gdal.org"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "runtime-python",
+      "name": "CPython (standard library only)",
+      "version": "3.12.15",
+      "purl": "pkg:generic/cpython@3.12.15",
+      "description": "The Python embedded in QGIS (verified on both test installs). Standard-library modules used: configparser, contextlib, csv, dataclasses, datetime, json, locale, math, os, re, shutil, sqlite3, traceback, typing, unicodedata, urllib.parse, uuid, zipfile. No third-party pip packages (no numpy, shapely, requests, geopandas).",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "PSF-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "runtime-sqlite",
+      "name": "SQLite (via Python sqlite3 and GDAL)",
+      "version": "3.53.4",
+      "purl": "pkg:generic/sqlite@3.53.4",
+      "description": "Direct SQL on the GeoPackage for reference-table copy, schema migration and metadata. The stdlib sqlite3 module lacks the GeoPackage spatial SQL functions (ST_IsEmpty etc.), so any UPDATE on a spatial table must go through GDAL.",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "blessing"
+          }
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "asset-template-gpkg",
+      "name": "JUD_UAT_SIRUTA_PUG_AAAALLZZ.gpkg (bundled project template)",
+      "version": "3.1.0",
+      "description": "templates/JUD_UAT_SIRUTA_PUG_AAAALLZZ/0_Seturi_date_spatiale/. Schema 3.1.0 (sys__versiune 3.1.0 / 2026-10-30). Derived from the official OMDLPA / Ministerul Dezvoltarii public template pug_3.1.0.gpkg (datelocale.mdlpa.ro, validation package 2026.10.30), with local additions: layer_styles, ~REF_* reference tables, NOT NULL constraints, and one extra _subtip_rte row ('Conducta de aductiune').",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a89205c197c8184af578a97e0392126d4f322d593a7a2b7d4d9de73c6123f9b6"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://datelocale.mdlpa.ro/ro/about/infodetail/58/"
+        },
+        {
+          "type": "website",
+          "url": "https://datelocale.mdlpa.ro/ro/about/infodetail/61/"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "asset-template-files",
+      "name": "Template folders and PDFs (1_Studii_fundamentare .. 4_Avize_acorduri)",
+      "description": "56 PDF/placeholder files under templates/JUD_UAT_SIRUTA_PUG_AAAALLZZ/ copied into new projects; structure follows OMDLPA Order 904.",
+      "scope": "required"
+    },
+    {
+      "type": "data",
+      "bom-ref": "asset-icons",
+      "name": "SVG toolbar icons (ui/icons/)",
+      "description": "Six first-party SVG files.",
+      "scope": "required"
+    },
+    {
+      "type": "application",
+      "bom-ref": "tool-7zip",
+      "name": "7-Zip",
+      "version": "26.05",
+      "purl": "pkg:generic/7-zip@26.05",
+      "description": "Builds the distributable PUGTools-X.Y.Z.Z.zip (no build script in the repository). The zip must exclude .git, .gitignore, .idea, .claude, __pycache__, .local_resources, dev.",
+      "scope": "excluded",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sbom:role",
+          "value": "tooling"
+        },
+        {
+          "name": "winget:id",
+          "value": "7zip.7zip"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "bom-ref": "tool-git",
+      "name": "Git for Windows",
+      "version": "2.56.0.windows.4",
+      "purl": "pkg:github/git-for-windows/git@v2.56.0.windows.4",
+      "scope": "excluded",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sbom:role",
+          "value": "tooling"
+        },
+        {
+          "name": "winget:id",
+          "value": "Git.Git"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "bom-ref": "tool-gh",
+      "name": "GitHub CLI (gh)",
+      "version": "2.103.3",
+      "purl": "pkg:golang/github.com/cli/cli/v2@v2.103.3",
+      "description": "Tagging and 'gh release create'. Installed system-wide.",
+      "scope": "excluded",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sbom:role",
+          "value": "tooling"
+        },
+        {
+          "name": "winget:id",
+          "value": "GitHub.cli"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "bom-ref": "tool-osv-scanner",
+      "name": "OSV-Scanner",
+      "version": "2.7.0",
+      "purl": "pkg:golang/github.com/google/osv-scanner/v2@v2.7.0",
+      "description": "Vulnerability scan of this SBOM (dev/cpr_precheck.py). Installed per user via winget.",
+      "scope": "excluded",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sbom:role",
+          "value": "tooling"
+        },
+        {
+          "name": "winget:id",
+          "value": "Google.OSVScanner"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "bom-ref": "tool-system-python",
+      "name": "CPython (system, dev scripts only)",
+      "version": "3.15.2",
+      "purl": "pkg:generic/cpython@3.15.2",
+      "description": "Runs dev/cpr_precheck.py (stdlib only; launch with `py -3.15`). Not used by the plugin at runtime - QGIS embeds its own Python.",
+      "scope": "excluded",
+      "licenses": [
+        {
+          "license": {
+            "id": "PSF-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sbom:role",
+          "value": "tooling"
+        },
+        {
+          "name": "winget:id",
+          "value": "Python.Python.3.15"
+        }
+      ]
+    }
+  ],
+  "services": [
+    {
+      "bom-ref": "svc-uat-wfs",
+      "name": "Administrative boundaries WFS (geo-spatial.org GeoServer)",
+      "endpoints": [
+        "https://services.geo-spatial.org/geoserver/administrative-boundaries/ows"
+      ],
+      "authenticated": false,
+      "trustZone": "public-internet",
+      "description": "Queried at runtime (tools/uat_boundary.py, via QgsBlockingNetworkRequest) with a SIRUTA code to fetch the UAT boundary; the result is cached locally and written to ~REF_UAT. Only the SIRUTA code is sent.",
+      "data": [
+        {
+          "flow": "outbound",
+          "classification": "public SIRUTA code"
+        }
+      ]
+    },
+    {
+      "bom-ref": "svc-mdlpa-reference",
+      "name": "datelocale.mdlpa.ro published validation rules and templates",
+      "endpoints": [
+        "https://datelocale.mdlpa.ro/ro/about/info/reguli"
+      ],
+      "authenticated": false,
+      "trustZone": "public-internet",
+      "description": "Not contacted at runtime. Reference for rule definitions (R10-R34) and template releases used during development."
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:generic/pugtools",
+      "dependsOn": [
+        "runtime-qgis",
+        "runtime-qgis-qt6",
+        "asset-template-gpkg",
+        "asset-template-files",
+        "asset-icons",
+        "svc-uat-wfs"
+      ]
+    },
+    {
+      "ref": "runtime-qgis",
+      "dependsOn": [
+        "runtime-pyqt5",
+        "runtime-gdal",
+        "runtime-python",
+        "runtime-sqlite"
+      ]
+    },
+    {
+      "ref": "runtime-qgis-qt6",
+      "dependsOn": [
+        "runtime-pyqt6",
+        "runtime-gdal",
+        "runtime-python",
+        "runtime-sqlite"
+      ]
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "id": "CVE-2025-13837",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-13837"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "low",
+          "score": 2.1
+        }
+      ],
+      "description": "When loading a plist file, the plistlib module reads data in size specified by the file itself, meaning a malicious file can cause OOM and DoS issues",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Plugin code never imports/uses the affected stdlib module (checked by grep 2026-11-04: it only uses zipfile in write mode, sqlite3, json, csv, urllib.parse). QGIS itself may still use it; fixed by a QGIS update shipping a newer Python (3.12.16+ available upstream)."
+      },
+      "affects": [
+        {
+          "ref": "runtime-python"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2025-12084",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-12084"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "medium",
+          "score": 6.3
+        }
+      ],
+      "description": "When building nested elements using xml.dom.minidom methods such as appendChild() that have a dependency on _clear_id_cache() the algorithm is quadratic. Availability can be impacted when building excessively nested documents.",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Plugin code never imports/uses the affected stdlib module (checked by grep 2026-11-04: it only uses zipfile in write mode, sqlite3, json, csv, urllib.parse). QGIS itself may still use it; fixed by a QGIS update shipping a newer Python (3.12.16+ available upstream)."
+      },
+      "affects": [
+        {
+          "ref": "runtime-python"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2025-12781",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-12781"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "medium",
+          "score": 6.3
+        }
+      ],
+      "description": "When passing data to the b64decode(), standard_b64decode(), and urlsafe_b64decode() functions in the \"base64\" module the characters \"+/\" will always be accepted, regardless of the value of \"altchars\" parameter, typically used to establish an \"alternative base64 alphabet\" such as the URL safe alphabe",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Plugin code never imports/uses the affected stdlib module (checked by grep 2026-11-04: it only uses zipfile in write mode, sqlite3, json, csv, urllib.parse). QGIS itself may still use it; fixed by a QGIS update shipping a newer Python (3.12.16+ available upstream)."
+      },
+      "affects": [
+        {
+          "ref": "runtime-python"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2025-13462",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-13462"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "low",
+          "score": 2.0
+        }
+      ],
+      "description": "The \"tarfile\" module would still apply normalization of AREGTYPE (\\x00) blocks to DIRTYPE, even while processing a multi-block member such as GNUTYPE_LONGNAME or GNUTYPE_LONGLINK. This could result in a crafted tar archive being misinterpreted by the tarfile module compared to other implementations.",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Plugin code never imports/uses the affected stdlib module (checked by grep 2026-11-04: it only uses zipfile in write mode, sqlite3, json, csv, urllib.parse). QGIS itself may still use it; fixed by a QGIS update shipping a newer Python (3.12.16+ available upstream)."
+      },
+      "affects": [
+        {
+          "ref": "runtime-python"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-3644",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-3644"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "medium",
+          "score": 6.0
+        }
+      ],
+      "description": "The fix for CVE-2026-0672, which rejected control characters in http.cookies.Morsel, was incomplete. The Morsel.update(), |= operator, and unpickling paths were not patched, allowing control characters to bypass input validation. Additionally, BaseCookie.js_output() lacked the output validation appl",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Plugin code never imports/uses the affected stdlib module (checked by grep 2026-11-04: it only uses zipfile in write mode, sqlite3, json, csv, urllib.parse). QGIS itself may still use it; fixed by a QGIS update shipping a newer Python (3.12.16+ available upstream)."
+      },
+      "affects": [
+        {
+          "ref": "runtime-python"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-4519",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-4519"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "high",
+          "score": 7.0
+        }
+      ],
+      "description": "The webbrowser.open() API would accept leading dashes in the URL which \ncould be handled as command line options for certain web browsers. New \nbehavior rejects leading dashes. Users are recommended to sanitize URLs \nprior to passing to webbrowser.open().",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Plugin code never imports/uses the affected stdlib module (checked by grep 2026-11-04: it only uses zipfile in write mode, sqlite3, json, csv, urllib.parse). QGIS itself may still use it; fixed by a QGIS update shipping a newer Python (3.12.16+ available upstream)."
+      },
+      "affects": [
+        {
+          "ref": "runtime-python"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-6019",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-6019"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "low",
+          "score": 2.1
+        }
+      ],
+      "description": "http.cookies.Morsel.js_output() returns an inline <script> snippet and only escapes \" for JavaScript string context. It does not neutralize the HTML parser-sensitive sequence </script> inside the generated script element. Mitigation base64-encodes the cookie value to disallow escaping using cookie v",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Plugin code never imports/uses the affected stdlib module (checked by grep 2026-11-04: it only uses zipfile in write mode, sqlite3, json, csv, urllib.parse). QGIS itself may still use it; fixed by a QGIS update shipping a newer Python (3.12.16+ available upstream)."
+      },
+      "affects": [
+        {
+          "ref": "runtime-python"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-3087",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-3087"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "medium",
+          "score": 6.0
+        }
+      ],
+      "description": "If `shutil.unpack_archive()` is given a ZIP archive with an absolute Windows path containing a drive (`C:\\\\...`) then the archive will be extracted outside the target directory which is different than other operating systems. Only Windows is affected by this vulnerability.",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Plugin code never imports/uses the affected stdlib module (checked by grep 2026-11-04: it only uses zipfile in write mode, sqlite3, json, csv, urllib.parse). QGIS itself may still use it; fixed by a QGIS update shipping a newer Python (3.12.16+ available upstream)."
+      },
+      "affects": [
+        {
+          "ref": "runtime-python"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-7210",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-7210"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "medium",
+          "score": 6.3
+        }
+      ],
+      "description": "`xml.parsers.expat` and `xml.etree.ElementTree` use insufficient entropy for Expat hash-flooding protection, which allows a crafted XML document to trigger hash flooding.\\r\\n\\r\\nFully mitigating this vulnerability requires both updating libexpat to 2.8.0 or later and applying this patch.",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Plugin code never imports/uses the affected stdlib module (checked by grep 2026-11-04: it only uses zipfile in write mode, sqlite3, json, csv, urllib.parse). QGIS itself may still use it; fixed by a QGIS update shipping a newer Python (3.12.16+ available upstream)."
+      },
+      "affects": [
+        {
+          "ref": "runtime-python"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-119371",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-119371"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "medium",
+          "score": 6.8
+        }
+      ],
+      "description": "SQLite before 3.54.0 contains a stack exhaustion vulnerability that allows attackers to bypass the SQLITE_LIMIT_EXPR_DEPTH nesting limit because common table expressions are not counted against it. Attackers can supply a WITH clause chaining tens of thousands of CTEs, via plain SQL or a view in an u",
+      "analysis": {
+        "state": "in_triage",
+        "detail": "Reachable only by opening an attacker-crafted GeoPackage (R-Tree, WAL, deep expressions/views). The plugin opens only the user's own project GPKG and the bundled template. Fixed in SQLite 3.54.0 - arrives with a QGIS update; avoid validating GeoPackages from untrusted sources until then."
+      },
+      "affects": [
+        {
+          "ref": "runtime-sqlite"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-119372",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-119372"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "medium",
+          "score": 6.8
+        }
+      ],
+      "description": "SQLite before 3.54.0 built with FTS3/FTS4 and SQLITE_ENABLE_FTS3_PARENTHESIS contains a use-after-free vulnerability in fts3BestSnippet() caused by dangling cached position-list pointers. Attackers can run a full-text MATCH query combining OR and NEAR operators with snippet() to read freed heap memo",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Needs FTS3/FTS5/session/CLI-shell functionality; the plugin's SQL is fixed and never creates or queries virtual FTS tables, changesets or the sqlite3 shell. Fixed in SQLite 3.54.0 via a QGIS update."
+      },
+      "affects": [
+        {
+          "ref": "runtime-sqlite"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-119373",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-119373"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "high",
+          "score": 8.5
+        }
+      ],
+      "description": "SQLite before 3.54.0 built with FTS5 contains a heap buffer overflow in fts5MergeRowidLists() that undersizes the output buffer when merging detail=none prefix doclists. Attackers who can populate a detail=none FTS5 table with negative rowids and run a prefix MATCH query can write past the allocatio",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Needs FTS3/FTS5/session/CLI-shell functionality; the plugin's SQL is fixed and never creates or queries virtual FTS tables, changesets or the sqlite3 shell. Fixed in SQLite 3.54.0 via a QGIS update."
+      },
+      "affects": [
+        {
+          "ref": "runtime-sqlite"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-119374",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-119374"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "high",
+          "score": 8.5
+        }
+      ],
+      "description": "SQLite before 3.54.0 built with FTS5 contains a heap buffer overflow in fts5DoSecureDelete() that allows attackers to write past the leaf page buffer via crafted footer key offsets. Attackers can supply a database file with a corrupted FTS5 index that, when deleted from with secure-delete enabled, c",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Needs FTS3/FTS5/session/CLI-shell functionality; the plugin's SQL is fixed and never creates or queries virtual FTS tables, changesets or the sqlite3 shell. Fixed in SQLite 3.54.0 via a QGIS update."
+      },
+      "affects": [
+        {
+          "ref": "runtime-sqlite"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-119375",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-119375"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "medium",
+          "score": 6.8
+        }
+      ],
+      "description": "SQLite before 3.54.0 contains an information disclosure vulnerability that allows attackers to read uninitialized page-cache memory by supplying a WAL file with an undersized page size. Attackers can craft a database and WAL file whose oversized record payload makes queries like substr() return stal",
+      "analysis": {
+        "state": "in_triage",
+        "detail": "Reachable only by opening an attacker-crafted GeoPackage (R-Tree, WAL, deep expressions/views). The plugin opens only the user's own project GPKG and the bundled template. Fixed in SQLite 3.54.0 - arrives with a QGIS update; avoid validating GeoPackages from untrusted sources until then."
+      },
+      "affects": [
+        {
+          "ref": "runtime-sqlite"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-119376",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-119376"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "medium",
+          "score": 6.8
+        }
+      ],
+      "description": "SQLite before 3.54.0 contains a stack exhaustion vulnerability that allows attackers to bypass the SQLITE_LIMIT_EXPR_DEPTH limit by chaining COLLATE postfix operators. Attackers can supply roughly 175,000 chained COLLATE operators in SQL or an untrusted database view to trigger unbounded recursion i",
+      "analysis": {
+        "state": "in_triage",
+        "detail": "Reachable only by opening an attacker-crafted GeoPackage (R-Tree, WAL, deep expressions/views). The plugin opens only the user's own project GPKG and the bundled template. Fixed in SQLite 3.54.0 - arrives with a QGIS update; avoid validating GeoPackages from untrusted sources until then."
+      },
+      "affects": [
+        {
+          "ref": "runtime-sqlite"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-119377",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-119377"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "low",
+          "score": 2.0
+        }
+      ],
+      "description": "SQLite before 3.54.0 contains an authorization bypass vulnerability in lookupName() that invokes the authorizer only for the first joined table's USING column. Attackers able to submit SQL can query a shared USING column in a RIGHT or FULL JOIN to read columns denied via sqlite3_set_authorizer() SQL",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Needs FTS3/FTS5/session/CLI-shell functionality; the plugin's SQL is fixed and never creates or queries virtual FTS tables, changesets or the sqlite3 shell. Fixed in SQLite 3.54.0 via a QGIS update."
+      },
+      "affects": [
+        {
+          "ref": "runtime-sqlite"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-119378",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-119378"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "medium",
+          "score": 6.8
+        }
+      ],
+      "description": "SQLite before 3.54.0 contains a use-after-free vulnerability in the R-Tree extension that allows attackers to make applications use freed heap memory by manipulating the %_node shadow table. Attackers can supply a database declaring %_node WITHOUT ROWID or with a RAISE(IGNORE) trigger so nodeWrite()",
+      "analysis": {
+        "state": "in_triage",
+        "detail": "Reachable only by opening an attacker-crafted GeoPackage (R-Tree, WAL, deep expressions/views). The plugin opens only the user's own project GPKG and the bundled template. Fixed in SQLite 3.54.0 - arrives with a QGIS update; avoid validating GeoPackages from untrusted sources until then."
+      },
+      "affects": [
+        {
+          "ref": "runtime-sqlite"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-119379",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-119379"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "high",
+          "score": 8.5
+        }
+      ],
+      "description": "SQLite before 3.54.0 built with the session extension contains a heap buffer overflow vulnerability in sqlite3changeset_apply() that allows attackers to corrupt heap memory by supplying crafted changesets. Attackers can repeat a table name in a second changeset block with a larger column count, caus",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Needs FTS3/FTS5/session/CLI-shell functionality; the plugin's SQL is fixed and never creates or queries virtual FTS tables, changesets or the sqlite3 shell. Fixed in SQLite 3.54.0 via a QGIS update."
+      },
+      "affects": [
+        {
+          "ref": "runtime-sqlite"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-119586",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-119586"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "high",
+          "score": 8.5
+        }
+      ],
+      "description": "SQLite command-line shell through 3.54.1 contains a command injection vulnerability in the .recover command that emits attacker-planted dot-commands stored in sqlite_schema.sql values verbatim. Attackers can craft a database whose schema holds a valid CREATE statement followed by a .shell or .system",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Needs FTS3/FTS5/session/CLI-shell functionality; the plugin's SQL is fixed and never creates or queries virtual FTS tables, changesets or the sqlite3 shell. Fixed in SQLite 3.54.0 via a QGIS update."
+      },
+      "affects": [
+        {
+          "ref": "runtime-sqlite"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-119591",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-119591"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "medium",
+          "score": 6.8
+        }
+      ],
+      "description": "SQLite before 3.54.0 contains a stack exhaustion vulnerability in countOfViewOptimization() that allows attackers to crash the host process via count(*) over a large multi-row VALUES clause. Attackers supplying SQL or a database file with a crafted view can trigger deeply nested TK_PLUS expressions ",
+      "analysis": {
+        "state": "in_triage",
+        "detail": "Reachable only by opening an attacker-crafted GeoPackage (R-Tree, WAL, deep expressions/views). The plugin opens only the user's own project GPKG and the bundled template. Fixed in SQLite 3.54.0 - arrives with a QGIS update; avoid validating GeoPackages from untrusted sources until then."
+      },
+      "affects": [
+        {
+          "ref": "runtime-sqlite"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2026-58052",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-58052"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "severity": "medium",
+          "score": 4.8
+        }
+      ],
+      "description": "7-Zip for Windows through 26.01 fails to preserve the Mark-of-the-Web when extracting a crafted RAR5 archive, because its guard that suppresses an archive-supplied Zone.Identifier stream matches the exact name 'Zone.Identifier' while a RAR5 STM record named ':Zone.Identifier:$DATA' is not matched an",
+      "analysis": {
+        "state": "resolved",
+        "detail": "Fixed by upgrading 7-Zip from 26.02 to 26.05 (installed 2026-11-04); the NVD range 'through 26.01' no longer covers it."
+      },
+      "affects": [
+        {
+          "ref": "tool-7zip"
+        }
+      ]
+    }
+  ]
+}

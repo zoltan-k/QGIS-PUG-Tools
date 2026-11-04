@@ -1,0 +1,16 @@
+# Python bytecode
+__pycache__/
+*.pyc
+
+# JetBrains IDE
+.idea/
+
+# Claude Code local settings (machine-specific)
+.claude/
+
+#local only reference resources
+.local_resources
+
+# OS cruft
+.DS_Store
+Thumbs.db
