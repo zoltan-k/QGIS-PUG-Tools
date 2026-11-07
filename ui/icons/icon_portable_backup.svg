@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="24" width="24">
+  <!-- open folder background (same as newPUG.svg / icon_updatePUG.svg) -->
+  <g stroke="#c9930b" stroke-width="0.4" stroke-linejoin="round">
+    <path d="M2 6h6.5l1.5 2h11v11h-19z" fill="#f0b400"/>
+    <path d="M2.3 10.5l19.2-1-1.7 9.5h-16z" fill="#ffce54"/>
+  </g>
+
+  <!-- PUG label on the folder -->
+  <text x="2.4" y="16.3" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="6" letter-spacing="-0.4" fill="#7a5900">PUG</text>
+
+  <!-- tiny "save disk" (floppy) overlay, same ~11x11 footprint at the same
+       bottom-right position as the badges of the first two icons -->
+  <g transform="translate(13,13)">
+    <!-- body with clipped top-right corner -->
+    <path d="M2 0H9L11 2V9a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2z" fill="#2b5b95" stroke="#1d3f69" stroke-width="0.6" stroke-linejoin="round"/>
+    <!-- metal shutter (top) -->
+    <rect x="2.3" y="0.6" width="5.6" height="3.4" rx="0.3" fill="#e6edf5"/>
+    <rect x="6" y="1" width="1.1" height="2.4" fill="#2b5b95"/>
+    <!-- label (bottom) -->
+    <rect x="1.8" y="6.2" width="7.4" height="4.2" rx="0.3" fill="#fcffff"/>
+    <path d="M2.8 7.5h5.4M2.8 9h5.4" stroke="#9db7d6" stroke-width="0.6"/>
+  </g>
+</svg>

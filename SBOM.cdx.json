@@ -19,7 +19,7 @@
       "type": "application",
       "bom-ref": "pkg:generic/pugtools",
       "name": "PUG Tools",
-      "version": "2.2.1.0",
+      "version": "2.2.2.0",
       "description": "QGIS plugin (pure Python, no compiled code) that creates and validates Romanian PUG/PUZ/PUD/PATJ/PMUD GeoPackage projects. Version taken from metadata.txt.",
       "scope": "required",
       "licenses": [
@@ -227,7 +227,7 @@
       "type": "data",
       "bom-ref": "asset-icons",
       "name": "SVG toolbar icons (ui/icons/)",
-      "description": "Six first-party SVG files.",
+      "description": "Seven first-party SVG files.",
       "scope": "required"
     },
     {

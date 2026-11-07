@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Plugin QGIS "PUG Tools": adauga un toolbar cu sase butoane, in aceasta ordine:
+Plugin QGIS "PUG Tools": adauga un toolbar cu sapte butoane, in aceasta ordine:
     1. Proiect nou PUG: creeaza un proiect PUG nou pe baza sablonului
        configurat, cu limita UAT-ului preluata dinamic pentru judetul/UAT-ul
        ales (tools/project_loader.py, tools/uat_boundary.py).
@@ -8,15 +8,18 @@ Plugin QGIS "PUG Tools": adauga un toolbar cu sase butoane, in aceasta ordine:
        referinta ("~"/"_") lipsa fata de sablonul curent si le actualizeaza
        stilurile (widget-uri de camp, valori implicite, actiuni,
        simbolizare), fara sa modifice datele (tools/package_updater.py).
+    3. Copie de siguranta portabila: un .zip langa fisierul .qgz cu proiectul
+       (cai strict relative) si tot folderul pachetului PUG
+       (tools/portable_backup.py).
     -- separator --
-    3. Ruleaza toate regulile de validare inregistrate (validations/rules_config.py)
+    4. Ruleaza toate regulile de validare inregistrate (validations/rules_config.py)
        pe proiectul QGIS curent activ si afiseaza rezultatele intr-un dialog.
-    4. Ruleaza doar regulile de validare bifate de utilizator, dintr-un
+    5. Ruleaza doar regulile de validare bifate de utilizator, dintr-un
        dialog de selectie (ui/rule_selection_dialog.py).
-    5. Pregateste proiectul curent pentru validare oficiala: creeaza o copie
+    6. Pregateste proiectul curent pentru validare oficiala: creeaza o copie
        arhivata cu data curenta (tools/preparator.py).
     -- separator --
-    6. Despre: informatii despre plugin si starea datelor locale (sablon,
+    7. Despre: informatii despre plugin si starea datelor locale (sablon,
        cache de limite UAT), cu actiuni de stergere/reimprospatare
        (ui/about_dialog.py). Include si "Editeaza sablonul"/"Salveaza
        sablonul" (tools/template_editor.py) - eliminate din toolbar/meniu,
@@ -33,6 +36,7 @@ from qgis.core import QgsProject
 from .tools import project_loader
 from .tools import preparator
 from .tools import package_updater
+from .tools import portable_backup
 from .ui.results_dialog import ValidationResultsDialog
 from .ui.rule_selection_dialog import RuleSelectionDialog
 from .ui.about_dialog import AboutDialog
@@ -55,6 +59,7 @@ class PugToolsPlugin:
         self.new_project_action = None
         self.prepare_action = None
         self.update_package_action = None
+        self.portable_backup_action = None
         self.about_action = None
 
     # -- ciclul de viata al plugin-ului -------------------------------------
@@ -112,6 +117,17 @@ class PugToolsPlugin:
         )
         self.update_package_action.triggered.connect(self.run_update_package)
 
+        self.portable_backup_action = QAction(
+            self._load_icon("icon_portable_backup.svg"),
+            "Copie de siguranta portabila",
+            self.iface.mainWindow(),
+        )
+        self.portable_backup_action.setToolTip(
+            "Creeaza o arhiva .zip portabila (langa fisierul .qgz) cu proiectul "
+            "(cai strict relative) si intregul folder al pachetului PUG"
+        )
+        self.portable_backup_action.triggered.connect(self.run_portable_backup)
+
         self.about_action = QAction(
             self._load_icon("icon_about.svg"),
             "Despre PUG Tools",
@@ -125,6 +141,7 @@ class PugToolsPlugin:
 
         self.toolbar.addAction(self.new_project_action)
         self.toolbar.addAction(self.update_package_action)
+        self.toolbar.addAction(self.portable_backup_action)
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.validate_action)
         self.toolbar.addAction(self.select_validate_action)
@@ -134,6 +151,7 @@ class PugToolsPlugin:
 
         self.iface.addPluginToMenu(MENU_NAME, self.new_project_action)
         self.iface.addPluginToMenu(MENU_NAME, self.update_package_action)
+        self.iface.addPluginToMenu(MENU_NAME, self.portable_backup_action)
         self.iface.addPluginToMenu(MENU_NAME, self.validate_action)
         self.iface.addPluginToMenu(MENU_NAME, self.select_validate_action)
         self.iface.addPluginToMenu(MENU_NAME, self.prepare_action)
@@ -156,6 +174,9 @@ class PugToolsPlugin:
         if self.update_package_action is not None:
             self.iface.removePluginMenu(MENU_NAME, self.update_package_action)
             self.update_package_action = None
+        if self.portable_backup_action is not None:
+            self.iface.removePluginMenu(MENU_NAME, self.portable_backup_action)
+            self.portable_backup_action = None
         if self.about_action is not None:
             self.iface.removePluginMenu(MENU_NAME, self.about_action)
             self.about_action = None
@@ -241,6 +262,9 @@ class PugToolsPlugin:
 
     def run_update_package(self):
         package_updater.run(self.iface)
+
+    def run_portable_backup(self):
+        portable_backup.run(self.iface)
 
     # -- actiunea "Despre" (include si editarea/salvarea sablonului) ------------
 

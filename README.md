@@ -11,7 +11,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## What it does
 
-Eight tools, all available from the plugin toolbar/menu inside QGIS:
+Nine tools, all available from the plugin toolbar/menu inside QGIS:
 
 1. **Validare** — runs the full set of validation rules against a
    GeoPackage's layers (attribute correlation, allowed values, value
@@ -26,10 +26,17 @@ Eight tools, all available from the plugin toolbar/menu inside QGIS:
 5. **Actualizeaza pachetul** — brings an existing project up to the current
    template's structure and styles (missing reference layers, styles),
    without touching content-layer data.
-6. **Editeaza sablonul** / **Salveaza sablonul** — safely edit the bundled
+6. **Copie de siguranta portabila** — creates `<package folder name>.zip`
+   (e.g. `HR_BALAN_83464_PUG_AAAALLZZ.zip`) next to the `.qgz`, containing the
+   project (rewritten with strictly relative paths), the whole `..._AAAALLZZ`
+   package folder, and `Alte_surse/` with any file-based layers that lived
+   outside the package (paths rewritten relative). It asks whether to save
+   unsaved changes, and warns that memory layers are lost and that URI/virtual
+   layers stay as they are. The open project is never modified.
+7. **Editeaza sablonul** / **Salveaza sablonul** — safely edit the bundled
    template's structure, styles, and field properties, with protection
    against leftover features in layers that must ship empty.
-7. **Despre** — plugin info and local-data status (template, UAT boundary
+8. **Despre** — plugin info and local-data status (template, UAT boundary
    cache), with delete/refresh actions.
 
 ## Requirements

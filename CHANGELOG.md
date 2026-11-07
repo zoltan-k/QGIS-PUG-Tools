@@ -8,6 +8,14 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.2.0
+
+- New **Copie de siguranta portabila** toolbar button: one zip next to the
+  `.qgz` holding the project (strictly relative paths), the whole package
+  folder and `Alte_surse/` for file-based layers from outside the package.
+  Prompts to save unsaved changes (a failed save stops the process) and
+  warns about memory layers (lost) and URI/virtual layers (kept as is).
+
 ## 2.2.1.0
 
 - `package_updater`: layers of dropped tables are now removed by source
