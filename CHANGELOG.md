@@ -8,6 +8,14 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.2.1
+
+- Fixed the `Judet` default of the `LimitaIntravilanExistenta` and
+  `LimitaIntravilanPropusa` layers: it was computed from the new feature's own
+  (empty) `SIRUTA` and stayed blank. It is now
+  `aggregate('~REF_UAT','max',"county")`, taken from the project's reference UAT.
+  Template-only change; refresh the active template copy from the About dialog.
+
 ## 2.2.2.0
 
 - New **Copie de siguranta portabila** toolbar button: one zip next to the

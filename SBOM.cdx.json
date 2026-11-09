@@ -19,7 +19,7 @@
       "type": "application",
       "bom-ref": "pkg:generic/pugtools",
       "name": "PUG Tools",
-      "version": "2.2.2.0",
+      "version": "2.2.2.1",
       "description": "QGIS plugin (pure Python, no compiled code) that creates and validates Romanian PUG/PUZ/PUD/PATJ/PMUD GeoPackage projects. Version taken from metadata.txt.",
       "scope": "required",
       "licenses": [
@@ -202,7 +202,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "a89205c197c8184af578a97e0392126d4f322d593a7a2b7d4d9de73c6123f9b6"
+          "content": "a93c6afd621b71538eb55e196574ef2cb91e93998022023d1f541a34459af3e0"
         }
       ],
       "externalReferences": [
