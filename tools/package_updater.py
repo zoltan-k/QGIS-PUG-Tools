@@ -582,6 +582,31 @@ def _sync_versiune_table(template_con, target_con, gpkg_path):
     return True
 
 
+def _versiune_needs_sync(template_con, target_con):
+    """
+    True daca _sync_versiune_table ar schimba ceva: tabela "sys__versiune"
+    lipseste din proiect, nu are exact un rand sau "versiune"/"data" difera de
+    sablon ("tip" nu se sincronizeaza niciodata - vezi _sync_versiune_table).
+    """
+    if not _table_exists(template_con, VERSIUNE_LAYER):
+        return False
+    if not _table_exists(target_con, VERSIUNE_LAYER):
+        return True
+    tcur = template_con.cursor()
+    tcur.execute(f'SELECT versiune, data FROM "{VERSIUNE_LAYER}" LIMIT 1')
+    template_row = tcur.fetchone()
+    if template_row is None:
+        return False
+    expected = {"versiune": template_row[0], "data": template_row[1]}
+    columns = [c for c in expected if c in _table_column_names(target_con, VERSIUNE_LAYER)]
+    if not columns:
+        return False
+    cur = target_con.cursor()
+    cur.execute(f'SELECT {", ".join(chr(34) + c + chr(34) for c in columns)} FROM "{VERSIUNE_LAYER}"')
+    rows = cur.fetchall()
+    return len(rows) != 1 or any(rows[0][i] != expected[c] for i, c in enumerate(columns))
+
+
 # -- caz special: aliniere schema RegulamentLocalUrbanismDetaliat ------------
 
 RLUD_LAYER = "RegulamentLocalUrbanismDetaliat"
@@ -660,15 +685,16 @@ def _rlud_columns_needing_type_change(template_gpkg, target_gpkg):
     Coloanele din RLUD_DETALIU_COLUMNS deja numerice in proiect, dar cu alt tip
     OGR decat in sablon (ex. "Integer" pe 32 biti din sabloanele 3.0.3-3.0.4 vs
     "Integer64" din 3.1.0+) - regula 10 a validatorului oficial cere tipuri
-    identice. Doar pentru proiecte 3.0.3+ (cu TOATE coloanele "..._detaliu"
-    deja prezente): proiectele 2.x (fara ele) isi pastreaza tipurile, iar cele
-    3.0.2 (TEXT) sunt tratate de _rlud_columns_needing_numeric_migration().
+    identice. Se aplica TUTUROR proiectelor, inclusiv celor 2.x (fara
+    coloanele "..._detaliu"): inainte de 2.2.3 acestea isi pastrau tipul
+    "Integer"; actualizarea doar adauga coloanele "..._detaliu", iar regula 10
+    continua sa esueze ("Clad_Hmax/POT: Integer, asteptat Integer64") pana la
+    A DOUA rulare, cand coloanele "..._detaliu" existau deja. Cele 3.0.2
+    (TEXT) sunt tratate de _rlud_columns_needing_numeric_migration().
     """
     template_types = _ogr_field_type_names(template_gpkg, RLUD_LAYER)
     target_types = _ogr_field_type_names(target_gpkg, RLUD_LAYER)
     if not template_types or not target_types:
-        return []
-    if any(detaliu not in target_types for detaliu in RLUD_DETALIU_COLUMNS.values()):
         return []
     return [
         c for c in RLUD_DETALIU_COLUMNS
@@ -813,6 +839,9 @@ def _migrate_rlud_schema(template_con, target_con, columns_to_numeric, force_reb
 
 # -- actualizare stiluri --------------------------------------------------
 
+_MAX_PROBED_STYLE_ID = 5000
+
+
 def _find_unreadable_layer_styles_rows(con):
     """
     Returneaza id-urile din "layer_styles" ale caror randuri nu pot fi
@@ -821,10 +850,17 @@ def _find_unreadable_layer_styles_rows(con):
     scurte) pot reusi pentru astfel de randuri; abia citirea continutului
     complet (styleQML, de obicei zeci-sute de KB, stocat pe pagini de
     overflow) declanseaza eroarea.
+
+    Daca nici macar lista de id-uri nu poate fi citita (arborele B al
+    tabelei e deteriorat la nivel de noduri interne), se sondeaza id-urile
+    1.._MAX_PROBED_STYLE_ID unul cate unul.
     """
     cur = con.cursor()
-    cur.execute("SELECT id FROM layer_styles")
-    all_ids = [row[0] for row in cur.fetchall()]
+    try:
+        cur.execute("SELECT id FROM layer_styles")
+        all_ids = [row[0] for row in cur.fetchall()]
+    except sqlite3.DatabaseError:
+        all_ids = list(range(1, _MAX_PROBED_STYLE_ID + 1))
     bad_ids = []
     for rid in all_ids:
         try:
@@ -848,13 +884,159 @@ def _layer_styles_needs_rebuild(con):
     _find_unreadable_layer_styles_rows nu detecta nimic) si "SELECT * FROM
     layer_styles" prin sqlite3 intorcea exact numarul corect de randuri, fara
     duplicate - doar accesul GDAL la nivel de pagina era afectat.
+
+    Verificarea de integritate se limiteaza la tabela "layer_styles"
+    (PRAGMA integrity_check(layer_styles), SQLite >= 3.33): o verificare pe
+    intreaga baza de date ar esua si din cauza unor pagini corupte ramase
+    in ALTE tabele - de ex. in tabela "orfana" lasata de o reconstructie
+    anterioara (vezi _purge_orphan_layer_styles_tables) - si ar declansa o
+    reconstructie inutila (si un nou orfan) la FIECARE actualizare. O eroare
+    SQLite aruncata chiar de verificare (pagini corupte atinse in timpul
+    parcurgerii) inseamna, ea insasi, "tabel deteriorat" - inainte de aceasta
+    corectura, exceptia nu era prinsa si oprea actualizarea cu "database
+    disk image is malformed".
     """
     if _find_unreadable_layer_styles_rows(con):
         return True
     cur = con.cursor()
-    cur.execute("PRAGMA integrity_check")
-    rows = cur.fetchall()
+    try:
+        if sqlite3.sqlite_version_info >= (3, 33, 0):
+            cur.execute("PRAGMA integrity_check(layer_styles)")
+        else:
+            cur.execute("PRAGMA integrity_check")
+        rows = cur.fetchall()
+    except sqlite3.DatabaseError:
+        return True
     return not (len(rows) == 1 and rows[0][0] == "ok")
+
+
+ORPHAN_PREFIX = "layer_styles_corrupted_orphan_"
+
+
+def _orphan_layer_styles_tables(gpkg_path):
+    """Numele tabelelor "orfane" (vezi _rebuild_layer_styles_table) din gpkg_path."""
+    con = sqlite3.connect(gpkg_path)
+    try:
+        cur = con.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", (ORPHAN_PREFIX + "%",))
+        return sorted(name for (name,) in cur.fetchall())
+    finally:
+        con.close()
+
+
+def _purge_orphan_layer_styles_tables(gpkg_path):
+    """
+    Elimina DEFINITIV din fisier tabelele "layer_styles_corrupted_orphan_*"
+    lasate de _rebuild_layer_styles_table (si de versiunile < 2.2.3 ale
+    plugin-ului, care le pastrau "doar redenumite").
+
+    Motivul: orfanul pastreaza chiar paginile corupte care au declansat
+    reconstructia, deci "PRAGMA integrity_check" pe intreaga baza de date
+    ramane "database disk image is malformed" PENTRU TOTDEAUNA, iar orice
+    verificare/operatie ulterioara care parcurge tot fisierul esueaza (cazul
+    raportat: a doua rulare a "Actualizeaza pachetul" se oprea cu aceasta
+    eroare).
+
+    1. DROP TABLE normal - merge cand lantul de pagini al randurilor este
+       intact (ex. orfan creat din cauza unei coruptii "silentioase").
+    2. Daca DROP TABLE esueaza (SQLite trebuie sa citeasca paginile corupte
+       ca sa le elibereze): intrarea tabelei se sterge direct din
+       sqlite_master (PRAGMA writable_schema), iar VACUUM reconstruieste
+       fisierul numai din paginile ACCESIBILE din schema - paginile corupte,
+       acum nereferentiate, nu mai sunt copiate. Verificat empiric: dupa
+       aceasta operatie "PRAGMA integrity_check" intoarce "ok".
+
+    Returneaza (nume_eliminate, eroare_sau_None). Apelata cu fisierul GPKG
+    inchis de orice alta conexiune, ca restul pasilor sqlite3 directi.
+    """
+    names = _orphan_layer_styles_tables(gpkg_path)
+    if not names:
+        return [], None
+    # autocommit: VACUUM nu poate rula intr-o tranzactie
+    con = sqlite3.connect(gpkg_path, isolation_level=None)
+    try:
+        remaining = []
+        for name in names:
+            try:
+                con.execute(f'DROP TABLE "{name}"')
+            except sqlite3.DatabaseError:
+                remaining.append(name)
+        if remaining:
+            quoted = ", ".join("'" + n.replace("'", "''") + "'" for n in remaining)
+            con.execute("PRAGMA writable_schema=ON")
+            con.execute(f"DELETE FROM sqlite_master WHERE type='table' AND name IN ({quoted})")
+            con.execute("PRAGMA writable_schema=OFF")
+            con.close()
+            con = sqlite3.connect(gpkg_path, isolation_level=None)  # schema reincarcata
+            con.execute("VACUUM")
+        return names, None
+    except sqlite3.Error as exc:
+        return [], str(exc)
+    finally:
+        con.close()
+
+
+def _canonical_template_styles(template_con):
+    """
+    ({nume_strat: tuplu_de_11_coloane_fara_id}, {nume_strat: numar_randuri_in_sablon})
+    - randul canonic per strat al sablonului (vezi _copy_layer_styles pentru
+    regula de alegere); duplicatele sunt raportate separat. ({}, {}) daca
+    sablonul nu are stiluri.
+    """
+    if not _table_exists(template_con, "layer_styles"):
+        return {}, {}
+    tcur = template_con.cursor()
+    tcur.execute(
+        "SELECT id, f_table_catalog, f_table_schema, f_table_name, f_geometry_column, "
+        "styleName, styleQML, styleSLD, useAsDefault, description, owner, ui "
+        "FROM layer_styles"
+    )
+    rows_by_table = {}
+    for row in tcur.fetchall():
+        rows_by_table.setdefault(row[3], []).append(row)  # row[3] = f_table_name
+    duplicate_counts = {}
+    canonical = {}
+    for table_name, rows in rows_by_table.items():
+        if len(rows) > 1:
+            duplicate_counts[table_name] = len(rows)
+        default_rows = [r for r in rows if r[8]]  # r[8] = useAsDefault
+        chosen = default_rows[0] if len(default_rows) == 1 else max(rows, key=lambda r: r[0])
+        canonical[table_name] = chosen[1:]  # elimina "id"
+    return canonical, duplicate_counts
+
+
+def _styles_needing_update(template_con, target_con, existing_target_tables):
+    """
+    Straturile (prezente in proiect) al caror stil din "layer_styles" difera de
+    cel canonic din sablon: lipseste, exista in mai multe exemplare sau are alt
+    continut. Un rand care nu poate fi citit conteaza ca "difera". Fara
+    efecte secundare - folosita atat pentru dialogul de confirmare, cat si
+    de _copy_layer_styles, ca sa NU rescrie stiluri deja identice cu sablonul.
+    """
+    canonical, _ = _canonical_template_styles(template_con)
+    if not canonical:
+        return []
+    if not _table_exists(target_con, "layer_styles"):
+        return sorted(t for t in canonical if t in existing_target_tables)
+    cur = target_con.cursor()
+    needing = []
+    for table_name, row in canonical.items():
+        if table_name not in existing_target_tables:
+            continue
+        try:
+            cur.execute(
+                "SELECT f_table_catalog, f_table_schema, f_table_name, f_geometry_column, "
+                "styleName, styleQML, styleSLD, useAsDefault, description, owner, ui "
+                "FROM layer_styles WHERE f_table_name = ?",
+                (table_name,),
+            )
+            found = cur.fetchall()
+        except sqlite3.DatabaseError:
+            needing.append(table_name)
+            continue
+        if len(found) != 1 or tuple(found[0]) != tuple(row):
+            needing.append(table_name)
+    return sorted(needing)
 
 
 def _rebuild_layer_styles_table(con, bad_ids):
@@ -874,8 +1056,10 @@ def _rebuild_layer_styles_table(con, bad_ids):
     necesar si pentru coruptii "silentioase" gen referinte duplicate de
     pagina, care nu impiedica citirea niciunui rand individual). Tabela
     veche (cu problema inca in ea) e doar redenumita ("orfana"), nu stearsa
-    - ramane in fisier, inaccesibila prin numele "layer_styles" folosit de
-    QGIS/OGR, fara alt efect functional decat spatiul ocupat.
+    - ramane TEMPORAR in fisier, inaccesibila prin numele "layer_styles"
+    folosit de QGIS/OGR; e eliminata definitiv, la finalul pasilor sqlite3,
+    de _purge_orphan_layer_styles_tables (altfel paginile ei corupte
+    pastreaza fisierul "malformed" pentru orice verificare de integritate).
 
     Returneaza (bad_ids, nume_tabela_orfana).
     """
@@ -929,23 +1113,6 @@ def _copy_layer_styles(template_con, target_con, existing_target_tables):
     nume_tabela_orfana) daca "layer_styles" a trebuit reconstruita din cauza
     unei coruptii (vezi _repair_corrupted_layer_styles).
     """
-    if not _table_exists(template_con, "layer_styles"):
-        return [], [], None, {}  # sablonul nu are deloc stiluri salvate
-
-    tcur = template_con.cursor()
-    tcur.execute(
-        "SELECT id, f_table_catalog, f_table_schema, f_table_name, f_geometry_column, "
-        "styleName, styleQML, styleSLD, useAsDefault, description, owner, ui "
-        "FROM layer_styles"
-    )
-    template_rows = tcur.fetchall()
-    if not template_rows:
-        return [], [], None, {}
-
-    rows_by_table = {}
-    for row in template_rows:
-        rows_by_table.setdefault(row[3], []).append(row)  # row[3] = f_table_name
-
     # sablonul ar trebui sa aiba UN SINGUR rand de stil per strat de continut.
     # Randuri suplimentare se pot acumula in timp in copia ACTIVA a
     # sablonului (nu in cea bundled cu plugin-ul) daca "Salveaza sablonul"
@@ -953,21 +1120,16 @@ def _copy_layer_styles(template_con, target_con, existing_target_tables):
     # QGIS creeaza un rand nou in loc sa il inlocuiasca pe cel vechi cand
     # numele difera (confirmat empiric); vezi si _repair_corrupted_layer_styles
     # pentru acelasi fenomen, observat intr-un proiect cu 13 randuri
-    # duplicate pentru un singur strat. Fara aceasta deduplicare, un sablon
-    # "murdar" ar propaga toate randurile vechi in fiecare proiect actualizat.
-    # Se pastreaza randul canonic: cel cu useAsDefault=1 (daca exact unul),
-    # altfel cel mai recent (id maxim).
-    duplicate_counts = {}
-    canonical_by_table = {}
-    for table_name, rows in rows_by_table.items():
-        if len(rows) > 1:
-            duplicate_counts[table_name] = len(rows)
-        default_rows = [r for r in rows if r[8]]  # r[8] = useAsDefault
-        chosen = default_rows[0] if len(default_rows) == 1 else max(rows, key=lambda r: r[0])
-        canonical_by_table[table_name] = chosen[1:]  # elimina "id" din tuplul de INSERT
+    # duplicate pentru un singur strat. Fara deduplicare (vezi
+    # _canonical_template_styles: randul cu useAsDefault=1, daca exact unul,
+    # altfel cel mai recent), un sablon "murdar" ar propaga toate randurile
+    # vechi in fiecare proiect actualizat.
+    canonical_by_table, duplicate_counts = _canonical_template_styles(template_con)
+    if not canonical_by_table:
+        return [], [], None, {}  # sablonul nu are (deloc) stiluri salvate
 
     updated = []
-    skipped = []
+    skipped = sorted(t for t in canonical_by_table if t not in existing_target_tables)
     repaired_info = None
 
     dcur = target_con.cursor()
@@ -983,6 +1145,11 @@ def _copy_layer_styles(template_con, target_con, existing_target_tables):
         )
         dcur = target_con.cursor()
 
+    # abia DUPA o eventuala reconstructie: doar stilurile care chiar difera de
+    # sablon sunt rescrise (nu mai rescriem neconditionat 11 stiluri de sute
+    # de KB la fiecare rulare, nici nu le mai raportam ca "actualizate").
+    to_update = set(_styles_needing_update(template_con, target_con, existing_target_tables))
+
     insert_sql = (
         "INSERT INTO layer_styles "
         "(f_table_catalog, f_table_schema, f_table_name, f_geometry_column, "
@@ -996,8 +1163,7 @@ def _copy_layer_styles(template_con, target_con, existing_target_tables):
     # trebuie pastrat - un rollback dupa o eroare de coruptie SQLite anuleaza
     # intreaga tranzactie curenta, nu doar instructiunea care a esuat.
     for table_name, row in canonical_by_table.items():
-        if table_name not in existing_target_tables:
-            skipped.append(table_name)
+        if table_name not in to_update:
             continue
         try:
             dcur.execute("DELETE FROM layer_styles WHERE f_table_name = ?", (table_name,))
@@ -1185,6 +1351,43 @@ def _sync_virtual_ref_layers(project):
     return replaced
 
 
+def _vref_layers_needing_rebuild(project):
+    """Numele straturilor virtuale pe care _sync_virtual_ref_layers le-ar reconstrui (fara efecte)."""
+    result = []
+    for name in sorted(virtual_layers.VREF_QUERIES):
+        if not virtual_layers.create_vref_layer(name).isValid():
+            continue
+        existing = project.mapLayersByName(name)
+        if existing and virtual_layers.current_query(existing[0]) == virtual_layers.VREF_QUERIES[name]:
+            continue
+        result.append(name)
+    return result
+
+
+def _obsolete_virtual_ref_layers(project):
+    """Straturile "virtual" necunoscute din grupul REF (vezi _remove_obsolete_virtual_ref_layers)."""
+    ref_group = _find_group_by_name(project.layerTreeRoot(), REF_GROUP_NAME)
+    if ref_group is None:
+        return []
+    found = []
+    for tree_layer in ref_group.findLayers():
+        layer = tree_layer.layer()
+        if layer is None or layer.dataProvider() is None:
+            continue
+        if layer.dataProvider().name() == "virtual" and layer.name() not in virtual_layers.VREF_QUERIES:
+            found.append(layer)
+    return found
+
+
+def _ref_group_misplaced(project):
+    """True daca grupul REF exista si nu e ultimul copil al parintelui sau (sau e expandat)."""
+    ref_group = _find_group_by_name(project.layerTreeRoot(), REF_GROUP_NAME)
+    if ref_group is None:
+        return False
+    parent = ref_group.parent()
+    return bool(parent is not None and parent.children()[-1] is not ref_group)
+
+
 def _remove_obsolete_virtual_ref_layers(project):
     """
     Straturi "virtual" (acelasi provider QGIS ca in virtual_layers.py) ramase
@@ -1201,20 +1404,8 @@ def _remove_obsolete_virtual_ref_layers(project):
 
     Returneaza lista numelor straturilor eliminate.
     """
-    root = project.layerTreeRoot()
-    ref_group = _find_group_by_name(root, REF_GROUP_NAME)
-    if ref_group is None:
-        return []
-
     removed = []
-    for tree_layer in list(ref_group.findLayers()):
-        layer = tree_layer.layer()
-        if layer is None or layer.dataProvider() is None:
-            continue
-        if layer.dataProvider().name() != "virtual":
-            continue
-        if layer.name() in virtual_layers.VREF_QUERIES:
-            continue
+    for layer in _obsolete_virtual_ref_layers(project):
         removed.append(layer.name())
         project.removeMapLayer(layer.id())
 
@@ -1307,6 +1498,28 @@ def _remove_unused_reference_tables(gpkg_path, table_names):
     return removed
 
 
+def _missing_template_files(template_dir, project_root):
+    """
+    [(cale_relativa, sursa, destinatie)] pentru fisierele din sablon, din
+    afara folderului GPKG, care lipsesc din proiect. Fara efecte secundare.
+    """
+    template_dir = template_dir.rstrip("/\\")
+    gpkg_folder_name = GPKG_FOLDER.rstrip("/")
+    missing = []
+    for dirpath, dirnames, filenames in os.walk(template_dir):
+        rel_dir = os.path.relpath(dirpath, template_dir)
+        top_level = rel_dir.split(os.sep)[0]
+        if top_level == gpkg_folder_name:
+            dirnames[:] = []  # nu coboara deloc in acest subfolder
+            continue
+        for filename in filenames:
+            rel_path = filename if rel_dir == "." else os.path.join(rel_dir, filename)
+            target_path = os.path.join(project_root, rel_path)
+            if not os.path.exists(target_path):
+                missing.append((rel_path.replace(os.sep, "/"), os.path.join(dirpath, filename), target_path))
+    return missing
+
+
 def _sync_missing_template_files(template_dir, project_root):
     """
     Copiaza in folderul proiectului orice fisier prezent in sablon dar lipsa
@@ -1322,23 +1535,11 @@ def _sync_missing_template_files(template_dir, project_root):
     Returneaza lista cailor relative (fata de radacina proiectului) ale
     fisierelor copiate.
     """
-    template_dir = template_dir.rstrip("/\\")
-    gpkg_folder_name = GPKG_FOLDER.rstrip("/")
     copied = []
-    for dirpath, dirnames, filenames in os.walk(template_dir):
-        rel_dir = os.path.relpath(dirpath, template_dir)
-        top_level = rel_dir.split(os.sep)[0]
-        if top_level == gpkg_folder_name:
-            dirnames[:] = []  # nu coboara deloc in acest subfolder
-            continue
-        for filename in filenames:
-            rel_path = filename if rel_dir == "." else os.path.join(rel_dir, filename)
-            target_path = os.path.join(project_root, rel_path)
-            if os.path.exists(target_path):
-                continue
-            os.makedirs(os.path.dirname(target_path), exist_ok=True)
-            shutil.copy2(os.path.join(dirpath, filename), target_path)
-            copied.append(rel_path.replace(os.sep, "/"))
+    for rel_path, source, target_path in _missing_template_files(template_dir, project_root):
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        shutil.copy2(source, target_path)
+        copied.append(rel_path)
     return sorted(copied)
 
 
@@ -1545,6 +1746,23 @@ def _run_impl(iface):
         stadiu_value_map = _stadiu_value_map(template_con_probe, target_con_probe)
         stadiu_rows_to_migrate = _count_stadiu_rows(target_con_probe, stadiu_value_map)
         legacy_versiune_present = _table_exists(target_con_probe, LEGACY_VERSIUNE_LAYER)
+        versiune_needs_sync = _versiune_needs_sync(template_con_probe, target_con_probe)
+        styles_to_update = _styles_needing_update(
+            template_con_probe, target_con_probe, target_tables | set(tables_to_copy)
+        )
+        layer_styles_damaged = (
+            _table_exists(target_con_probe, "layer_styles")
+            and _layer_styles_needs_rebuild(target_con_probe)
+        )
+        try:
+            stray_ref_styles = (
+                [] if not _table_exists(target_con_probe, "layer_styles") else sorted(
+                    n for (n,) in target_con_probe.execute("SELECT DISTINCT f_table_name FROM layer_styles")
+                    if n and n.startswith(REF_PREFIXES)
+                )
+            )
+        except sqlite3.DatabaseError:
+            stray_ref_styles = []  # tabela deteriorata - tratata de reconstructie
     finally:
         template_con_probe.close()
         target_con_probe.close()
@@ -1609,24 +1827,97 @@ def _run_impl(iface):
         t for t in target_tables if t.startswith(REF_PREFIXES) and t not in template_tables
     )
 
+    # alte schimbari din afara GPKG-ului / la nivel de proiect - pentru ca
+    # dialogul sa enumere DOAR ce se schimba cu adevarat (si ca "nimic de
+    # facut" sa poata fi recunoscut) - vezi pasii corespunzatori mai jos.
+    project_root_probe = os.path.dirname(os.path.dirname(gpkg_path))
+    missing_files = _missing_template_files(template_dir, project_root_probe)
+    orphan_tables_present = _orphan_layer_styles_tables(gpkg_path)
+    vref_to_rebuild = _vref_layers_needing_rebuild(project)
+    vref_obsolete = [lyr.name() for lyr in _obsolete_virtual_ref_layers(project)]
+    ref_group_misplaced = _ref_group_misplaced(project)
+    gp_norm = _norm_path(gpkg_path)
+    dangling_probe = sorted(
+        lyr.name() for lyr in project.mapLayers().values()
+        if _layer_gpkg_table(lyr)[0] == gp_norm and _layer_gpkg_table(lyr)[1] not in target_tables
+    )
+
+    change_lines = []
+    if missing_ref_tables:
+        change_lines.append(
+            f"- {len(missing_ref_tables)} strat(uri) de referinta lipsa vor fi adaugate "
+            f"({', '.join(missing_ref_tables)}).\n"
+        )
+    for note in (
+        ref_uat_note, replace_note, stadiu_note, rlud_retype_note, rlud_note, versiune_note
+    ):
+        if note:
+            change_lines.append(note)
+    if versiune_needs_sync:
+        change_lines.append(
+            "- Numarul de versiune al pachetului (tabela \"sys__versiune\") va fi actualizat "
+            "la cel al sablonului curent.\n"
+        )
+    if styles_to_update:
+        change_lines.append(
+            f"- Stilul a {len(styles_to_update)} strat(uri) difera de sablon si va fi inlocuit "
+            f"({', '.join(styles_to_update)}): widget-uri de camp, valori implicite, actiuni, "
+            "simbolizare.\n"
+        )
+    if layer_styles_damaged:
+        change_lines.append(
+            "- Tabela \"layer_styles\" a fisierului GPKG este deteriorata (pagini corupte / "
+            "referentiate de doua ori) si va fi reconstruita; randurile ilizibile se pierd, "
+            "stilurile se refac din sablon.\n"
+        )
+    if orphan_tables_present or layer_styles_damaged:
+        change_lines.append(
+            "- Tabelele ramase dintr-o reparare anterioara (\"layer_styles_corrupted_orphan_*\") "
+            "sau create acum vor fi eliminate definitiv din fisier (cu VACUUM, care "
+            "reconstruieste fisierul GPKG).\n"
+        )
+    if stray_ref_styles:
+        change_lines.append(
+            "- Stiluri salvate gresit pentru straturi de referinta vor fi sterse "
+            f"({', '.join(stray_ref_styles)}).\n"
+        )
+    if unused_ref_tables_to_remove:
+        change_lines.append(
+            "- Tabelele de referinta care nu mai fac parte din sablon vor fi eliminate: "
+            f"{', '.join(unused_ref_tables_to_remove)}.\n"
+        )
+    if missing_files:
+        change_lines.append(
+            f"- {len(missing_files)} fisier(e) din sablon lipsa din folderele proiectului vor fi "
+            "copiate (fisierele existente nu sunt atinse).\n"
+        )
+    if vref_to_rebuild or vref_obsolete:
+        change_lines.append(
+            "- Straturi virtuale de referinta de reconstruit/eliminat: "
+            f"{', '.join(vref_to_rebuild + vref_obsolete)}.\n"
+        )
+    if dangling_probe:
+        change_lines.append(
+            f"- Straturi cu sursa lipsa vor fi eliminate din proiect: {', '.join(dangling_probe)}.\n"
+        )
+    if ref_group_misplaced:
+        change_lines.append("- Grupul de straturi \"REF\" va fi mutat la finalul arborelui.\n")
+
+    if not change_lines:
+        QMessageBox.information(
+            iface.mainWindow(),
+            "Actualizeaza pachetul",
+            "Pachetul este deja la zi fata de sablonul curent - nu e nimic de actualizat.",
+        )
+        return False
+
     answer = QMessageBox.question(
         iface.mainWindow(),
         "Actualizeaza pachetul",
         f"{outdated_note}"
         "Proiectul curent va fi actualizat la structura sablonului curent:\n\n"
-        f"- {len(missing_ref_tables)} strat(uri) de referinta lipsa vor fi adaugate "
-        "(nume care incep cu \"~\" sau \"_\").\n"
-        f"{ref_uat_note}"
-        f"{replace_note}"
-        f"{stadiu_note}"
-        f"{rlud_retype_note}"
-        f"{rlud_note}"
-        f"{versiune_note}"
-        "- Stilurile straturilor pentru care sablonul are un stil salvat (widget-uri "
-        "de camp, valori implicite, actiuni, simbolizare) vor fi inlocuite cu cele "
-        "din sablon.\n"
-        "- Numarul de versiune al pachetului (tabela \"sys__versiune\") va fi actualizat la "
-        "cel al sablonului curent.\n\n"
+        + "".join(change_lines)
+        + "\n"
         "Datele din straturile cu continut (PlanSpatial, ZFExistenta etc.) NU sunt "
         "modificate.\n\n"
         "Inainte de orice modificare, proiectul (.qgz) si fisierul GPKG vor fi "
@@ -1677,6 +1968,8 @@ def _run_impl(iface):
     rlud_rebuilt = False
     rlud_added_columns = []
     rlud_moved_to_detaliu = {}
+    purged_orphans = []
+    purge_error = None
     try:
         template_con = sqlite3.connect(template_gpkg)
         target_con = sqlite3.connect(gpkg_path)
@@ -1690,7 +1983,7 @@ def _run_impl(iface):
                     template_con, target_con, rlud_columns_to_migrate,
                     force_rebuild=bool(rlud_columns_to_retype),
                 )
-            versiune_synced = _sync_versiune_table(template_con, target_con, gpkg_path)
+            versiune_synced = versiune_needs_sync and _sync_versiune_table(template_con, target_con, gpkg_path)
             # comis separat, inainte de _copy_layer_styles: daca stilurile
             # necesita repararea "layer_styles" (vezi _repair_corrupted_layer_styles),
             # un rollback la mijlocul acelui proces nu trebuie sa anuleze si
@@ -1704,6 +1997,12 @@ def _run_impl(iface):
         finally:
             template_con.close()
             target_con.close()
+
+        # tabelele "orfane" ale layer_styles (vezi
+        # _purge_orphan_layer_styles_tables): TREBUIE eliminate, altfel
+        # fisierul ramane "malformed" pentru orice verificare de integritate
+        # si urmatoarea actualizare se opreste cu eroarea de baza de date.
+        purged_orphans, purge_error = _purge_orphan_layer_styles_tables(gpkg_path)
 
         # valorile PlanSpatial.Stadiu - prin OGR, dupa inchiderea conexiunilor
         # sqlite3 (vezi _migrate_stadiu_values pentru motiv).
@@ -1881,22 +2180,31 @@ def _run_impl(iface):
             "corecta - un 'Deschide proiectul' din nou va arata stilul corect)."
         )
     if repaired_info:
-        bad_ids, orphan_name = repaired_info
+        bad_ids, _orphan_name = repaired_info
         if bad_ids:
             summary_lines.append(
                 f"ATENTIE: tabela 'layer_styles' continea {len(bad_ids)} rand(uri) "
-                "corupte (nu au putut fi citite) - au fost izolate intr-o tabela "
-                f"separata ('{orphan_name}', ramasa in fisier, fara efect asupra "
-                "proiectului) pentru ca actualizarea stilurilor sa poata continua."
+                "corupte (nu au putut fi citite) - au fost izolate si eliminate din "
+                "fisier, iar stilurile au fost refacute din sablon."
             )
         else:
             summary_lines.append(
                 "Tabela 'layer_styles' avea o problema de structura (pagini "
                 "referentiate de doua ori, cauza probabila a stilurilor "
                 "'fantoma' duplicate din dialogul QGIS 'Load Style') - a fost "
-                f"reconstruita automat (vechea tabela izolata in '{orphan_name}', "
-                "ramasa in fisier fara efect asupra proiectului)."
+                "reconstruita automat."
             )
+    if purged_orphans:
+        summary_lines.append(
+            "Tabele 'layer_styles' deteriorate eliminate definitiv din fisier "
+            f"({len(purged_orphans)})."
+        )
+    if purge_error:
+        summary_lines.append(
+            "ATENTIE: tabela 'layer_styles' deteriorata NU a putut fi eliminata din "
+            f"fisier ({purge_error}). Fisierul GPKG ramane cu pagini corupte; copia de "
+            "rezerva e intacta."
+        )
     if duplicate_style_counts:
         detail = ", ".join(f"{name} ({count})" for name, count in duplicate_style_counts.items())
         summary_lines.append(

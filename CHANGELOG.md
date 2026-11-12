@@ -8,6 +8,19 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.3.0
+
+- `package_updater` (**Actualizeaza pachetul**): a damaged `layer_styles` table
+  no longer leaves the GeoPackage permanently "malformed". The renamed
+  corrupted copy is now removed from the file (`DROP TABLE`, or a schema edit
+  plus `VACUUM` when the pages are unreadable), so running the update a second
+  time no longer stops with "database disk image is malformed". Packages left
+  in that state by earlier versions are cleaned on the next run.
+- RLUD `Clad_Hmax`/`POT` are retyped to `Integer64` in the first run, so rule 10
+  passes right after the update (previously only after a second run).
+- The confirmation dialog lists only real differences and reports "already up
+  to date" (without making a backup) when there is nothing to do.
+
 ## 2.2.2.1
 
 - Fixed the `Judet` default of the `LimitaIntravilanExistenta` and
