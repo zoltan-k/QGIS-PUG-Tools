@@ -8,7 +8,7 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
-## 2.2.3.1
+## 2.2.3.2
 
 - `package_updater` (**Actualizeaza pachetul**): the backup made before an update
   now contains the project and the **whole package folder** (all subfolders),
