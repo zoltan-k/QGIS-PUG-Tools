@@ -26,8 +26,10 @@ urmatoarele limite:
        celor de mai sus, deci un grup de referinta plasat sus (ex.
        "~REF_UAT", un poligon ce acopera tot UAT-ul) acoperea vizual harta.
     5. Copiaza in subfolderele proiectului (in afara de folderul GPKG-ului)
-       orice fisier prezent in sablon dar lipsa din proiect (studii, piese
-       scrise/desenate, avize) - vezi _sync_missing_template_files. NU
+       fisierele din sablon lipsa din proiect (studii, piese scrise/desenate,
+       avize; reguli pe prefix numeric in _template_file_plan: nepotrivirile
+       de nume sunt doar raportate, in 4_ se adauga PDF-uri numai daca nu
+       exista niciunul) - vezi _sync_missing_template_files. NU
        suprascrie fisiere existente, NU sterge fisiere din proiect absente
        din sablon.
     6. Reconstruieste straturile de referinta "virtuale" (provider QGIS
@@ -1510,26 +1512,74 @@ def _remove_unused_reference_tables(gpkg_path, table_names):
     return removed
 
 
-def _missing_template_files(template_dir, project_root):
+_NUMBERED_PREFIX_RE = re.compile(r"^(\d+_\d+)_", re.IGNORECASE)
+
+
+def _template_file_plan(template_dir, project_root):
     """
-    [(cale_relativa, sursa, destinatie)] pentru fisierele din sablon, din
-    afara folderului GPKG, care lipsesc din proiect. Fara efecte secundare.
+    (missing, mismatches), fara efecte secundare.
+
+    missing    : [(cale_relativa, sursa, destinatie)] - fisiere din sablon, din
+                 afara folderului GPKG, care trebuie copiate in proiect.
+    mismatches : [(cale_relativa_sablon, nume_existent)] - fisiere PDF din sablon
+                 NECOPIATE pentru ca proiectul are deja un fisier cu acelasi
+                 prefix numeric (ex. "1_3_") dar alt nume; ramane neschimbat.
+
+    Reguli (regula 5 a validatorului oficial: numele exacte 1_x_..3_x_ in
+    folderele 1_/2_/3_, orice PDF care incepe cu "4_" in folderul 4_):
+      - fisier lipsa dupa nume exact, in 1_/2_/3_: daca exista deja un fisier cu
+        acelasi prefix numeric -> nepotrivire de nume (nu se copiaza, se
+        raporteaza); altfel se copiaza;
+      - folderul 4_: daca exista deja vreun PDF care incepe cu "4_", nu se
+        adauga nimic; altfel se adauga toate PDF-urile din sablon;
+      - orice alt fisier: se copiaza daca lipseste dupa nume exact.
     """
     template_dir = template_dir.rstrip("/\\")
     gpkg_folder_name = GPKG_FOLDER.rstrip("/")
-    missing = []
+    missing, mismatches = [], []
     for dirpath, dirnames, filenames in os.walk(template_dir):
         rel_dir = os.path.relpath(dirpath, template_dir)
         top_level = rel_dir.split(os.sep)[0]
         if top_level == gpkg_folder_name:
             dirnames[:] = []  # nu coboara deloc in acest subfolder
             continue
+        target_dir = os.path.join(project_root, rel_dir)
+        try:
+            existing = os.listdir(target_dir) if os.path.isdir(target_dir) else []
+        except OSError:
+            existing = []
+        existing_lower = [n.lower() for n in existing]
+        is_avize = rel_dir != "." and top_level.startswith("4_") and os.sep not in rel_dir
+        has_avize_pdf = is_avize and any(n.startswith("4_") and n.endswith(".pdf") for n in existing_lower)
         for filename in filenames:
             rel_path = filename if rel_dir == "." else os.path.join(rel_dir, filename)
             target_path = os.path.join(project_root, rel_path)
-            if not os.path.exists(target_path):
-                missing.append((rel_path.replace(os.sep, "/"), os.path.join(dirpath, filename), target_path))
-    return missing
+            if os.path.exists(target_path):
+                continue
+            is_pdf = filename.lower().endswith(".pdf")
+            if is_avize and is_pdf:
+                if has_avize_pdf:
+                    continue
+            elif is_pdf and rel_dir != ".":
+                match = _NUMBERED_PREFIX_RE.match(filename)
+                if match:
+                    prefix = match.group(1).lower() + "_"
+                    same = [n for n in existing if n.lower().startswith(prefix)]
+                    if same:
+                        mismatches.append((rel_path.replace(os.sep, "/"), same[0]))
+                        continue
+            missing.append((rel_path.replace(os.sep, "/"), os.path.join(dirpath, filename), target_path))
+    return missing, mismatches
+
+
+def _missing_template_files(template_dir, project_root):
+    """[(cale_relativa, sursa, destinatie)] de copiat - vezi _template_file_plan."""
+    return _template_file_plan(template_dir, project_root)[0]
+
+
+def _template_name_mismatches(template_dir, project_root):
+    """[(cale_sablon, nume_existent)] - vezi _template_file_plan."""
+    return _template_file_plan(template_dir, project_root)[1]
 
 
 def _sync_missing_template_files(template_dir, project_root):
@@ -1981,6 +2031,7 @@ def _run_impl(iface):
     removed_ref_styles = []
     removed_unused_tables = []
     synced_files = []
+    file_name_mismatches = []
     ref_uat_error = None
     replaced_tables = []
     stadiu_rows_migrated = 0
@@ -2061,6 +2112,7 @@ def _run_impl(iface):
         # _sync_missing_template_files pentru limitele stricte (nu suprascrie,
         # nu sterge).
         project_root = os.path.dirname(os.path.dirname(gpkg_path))
+        file_name_mismatches = _template_name_mismatches(template_dir, project_root)
         synced_files = _sync_missing_template_files(template_dir, project_root)
     finally:
         # indiferent de rezultat, proiectul trebuie redeschis - altfel utilizatorul
@@ -2180,6 +2232,12 @@ def _run_impl(iface):
         summary_lines.append(
             "Fisiere lipsa preluate din sablon: "
             f"{len(synced_files)} ({', '.join(synced_files)})"
+        )
+    if file_name_mismatches:
+        summary_lines.append(
+            "ATENTIE - nume de fisier diferit de sablon (fisierul existent a fost pastrat, "
+            "nu s-a copiat nimic; validatorul cere numele exacte pentru 1_, 2_, 3_): "
+            + "; ".join(f"{t} <> {e}" for t, e in file_name_mismatches)
         )
     if synced_vref_layers:
         summary_lines.append(

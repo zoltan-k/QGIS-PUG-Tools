@@ -333,7 +333,11 @@ def _write_portable_project(other, project_file, relocations, keep_layers):
             candidates.append(resolver.writePath(path))
         except Exception:
             pass
-        candidates += [path.replace("\\", "/"), path, os.path.relpath(path, project_dir).replace("\\", "/")]
+        candidates += [path.replace("\\", "/"), path]
+        try:
+            candidates.append(os.path.relpath(path, project_dir).replace("\\", "/"))
+        except ValueError:
+            pass  # alta unitate decat proiectul (ex. T: vs D:) - nu exista cale relativa
         new_ds = None
         for cand in candidates:
             if cand and cand in old_ds:

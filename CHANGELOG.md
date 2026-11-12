@@ -8,6 +8,18 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.3.3
+
+- **Portable copy**: no longer fails when a layer's file is on a different drive
+  than the project (e.g. a DXF on `T:` with the project on `D:`); the file is
+  copied into `Alte_surse` like any other external source.
+- `package_updater` (**Actualizeaza pachetul**), copying missing template files:
+  - folders `1_`, `2_`, `3_`: a template PDF is copied only if the folder has no
+    file with the same numeric prefix (e.g. `1_3_`). A file with the same prefix
+    but a different name is left as is and listed as a warning in the result.
+  - folder `4_Avize_acorduri`: nothing is added if it already contains any PDF
+    starting with `4_`; if it has none, all template PDFs are added.
+
 ## 2.2.3.2
 
 - `package_updater` (**Actualizeaza pachetul**): the backup made before an update
