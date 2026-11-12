@@ -2,7 +2,7 @@
 name=PUG Tools
 qgisMinimumVersion=3.28
 description=Ruleaza reguli de validare (corelare atribute, valori admise, geometrie, sliver polygons, etc.) pe straturi GeoPackage, creeaza proiecte PUG noi pentru orice UAT din Romania (limita administrativa preluata dinamic), si pregateste proiectul curent pentru validare oficiala, dintr-un proiect QGIS activ.
-version=2.2.3.3
+version=2.2.3.4
 author=
 email=
 

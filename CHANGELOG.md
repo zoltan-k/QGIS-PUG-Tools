@@ -8,6 +8,14 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.3.4
+
+- The portable copy and the backup made before **Actualizeaza pachetul** now
+  checkpoint the GeoPackage first (`PRAGMA wal_checkpoint(TRUNCATE)`), so recent
+  edits are inside the `.gpkg` and the `-wal` file in the zip is empty. Works
+  with QGIS open; if the file is locked the backup still proceeds and includes
+  the `-wal`/`-shm` files as before.
+
 ## 2.2.3.3
 
 - **Portable copy**: no longer fails when a layer's file is on a different drive

@@ -38,6 +38,7 @@ Fluxul (in aceasta ordine):
 import io
 import os
 import re
+import sqlite3
 import traceback
 import zipfile
 from datetime import datetime
@@ -160,6 +161,30 @@ def package_folder_for_gpkg(gpkg_path, project_dir):
         return None
     folder = os.path.dirname(os.path.dirname(os.path.abspath(gpkg_path)))
     return folder if os.path.isdir(folder) else None
+
+
+def checkpoint_gpkgs(package_folder):
+    """
+    Muta continutul fisierelor -wal in fisierele .gpkg ale pachetului
+    (PRAGMA wal_checkpoint(TRUNCATE)), inainte de arhivare, ca .gpkg + -wal + -shm
+    sa fie consistente. Merge si cu QGIS deschis; best-effort - o eroare (fisier
+    blocat etc.) nu opreste copia, care include oricum si fisierele -wal/-shm.
+    """
+    for root, _dirs, files in os.walk(package_folder):
+        for fname in files:
+            if not fname.lower().endswith(".gpkg"):
+                continue
+            path = os.path.join(root, fname)
+            try:
+                con = sqlite3.connect("file:" + path.replace("\\", "/").replace("?", "%3f").replace("#", "%23") + "?mode=rw", uri=True, timeout=5)
+                try:
+                    con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                finally:
+                    con.close()
+            except Exception as exc:  # noqa: BLE001
+                QgsMessageLog.logMessage(
+                    f"Checkpoint WAL esuat pentru {path}: {exc}", LOG_TAG, level=Qgis.Warning
+                )
 
 
 def add_package_folder(zf, package_folder, project_dir):
@@ -533,6 +558,7 @@ def _run_impl(iface):
     finally:
         other.clear()
 
+    checkpoint_gpkgs(package_folder)
     tmp_zip = zip_path + ".tmp"
     try:
         with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:

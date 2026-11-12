@@ -122,7 +122,7 @@ from qgis.core import Qgis, QgsLayerTreeGroup, QgsMessageLog, QgsProject, QgsVec
 from qgis.PyQt.QtWidgets import QMessageBox
 
 from . import uat_boundary, virtual_layers
-from .portable_backup import add_package_folder, package_folder_for_gpkg
+from .portable_backup import add_package_folder, checkpoint_gpkgs, package_folder_for_gpkg
 from .template_paths import (
     GPKG_FOLDER,
     GPKG_RELATIVE,
@@ -242,6 +242,7 @@ def _create_backup(project_file, gpkg_path):
             # externe nu sunt copiate si raman neatinse.
             package_folder = package_folder_for_gpkg(gpkg_path, project_dir)
             if package_folder:
+                checkpoint_gpkgs(package_folder)  # .gpkg + -wal consistente
                 add_package_folder(zf, package_folder, project_dir)
                 return backup_path
 
