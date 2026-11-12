@@ -258,7 +258,9 @@ class ValidationResultsDialog(QDialog):
             self,
             "Confirma remedierea",
             f"Aceasta va modifica DIRECT straturile GPKG afectate de {rule_labels}, "
-            "in proiectul curent deschis.\n\nContinui?",
+            "in proiectul curent deschis."
+            + (f"\n\n{group['extra_confirm']}" if group.get("extra_confirm") else "")
+            + "\n\nContinui?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )

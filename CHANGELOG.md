@@ -8,6 +8,13 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.3.6
+
+- New **Repara R25** button in the validation results (invalid or missing geometries). For every layer R25 reports: features with no geometry are deleted; features with invalid geometry get the geometry (geometry only, same feature id) from a temporary *Fix geometries* output, which is then discarded.
+- Before any change, a timestamped GeoPackage-only backup (`<name>_backup_YYYYMMDD_HHMMSS.gpkg`) is written next to the project file; without a backup nothing is modified.
+- A repaired geometry that no longer fits the layer's geometry type is left unchanged and listed in the result.
+- The partial validator's rule picker starts with no rule checked and remembers the rules from the last run.
+
 ## 2.2.3.4
 
 - The portable copy and the backup made before **Actualizeaza pachetul** now

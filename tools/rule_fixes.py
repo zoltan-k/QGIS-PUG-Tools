@@ -227,6 +227,167 @@ def fix_geometry_2d(project, rule):
     return result
 
 
+# -- R25: geometrii lipsa (stergere) / invalide (Fix geometries) ---------------
+
+def _backup_gpkg_in_project_folder(project, gpkg_path):
+    """
+    Copie de rezerva NUMAI a fisierului GPKG, cu data si ora in nume, plasata
+    doar in folderul fisierului de proiect. Foloseste API-ul de backup SQLite
+    (consistent chiar daca exista -wal). Ridica RuntimeError daca nu reuseste -
+    fix-ul nu trebuie sa continue fara copie de rezerva.
+    """
+    import os
+    import sqlite3
+    from datetime import datetime
+
+    project_file = project.fileName()
+    if not project_file:
+        raise RuntimeError("Proiectul nu este salvat - nu se poate crea copia de rezerva.")
+    project_dir = os.path.dirname(project_file)
+    stem = os.path.splitext(os.path.basename(gpkg_path))[0]
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = os.path.join(project_dir, f"{stem}_backup_{timestamp}.gpkg")
+
+    src = dst = None
+    try:
+        src = sqlite3.connect(gpkg_path)
+        dst = sqlite3.connect(backup_path)
+        src.backup(dst)
+    except (sqlite3.Error, OSError) as exc:
+        if dst is not None:
+            dst.close()
+            dst = None
+        try:
+            if os.path.isfile(backup_path):
+                os.remove(backup_path)
+        except OSError:
+            pass
+        raise RuntimeError(
+            f"Nu s-a putut crea copia de rezerva:\n{backup_path}\n\nEroare: {exc}\n\n"
+            "Remedierea a fost anulata - nu s-a modificat nimic."
+        ) from exc
+    finally:
+        if dst is not None:
+            dst.close()
+        if src is not None:
+            src.close()
+    return backup_path
+
+
+def _scan_bad_geometries(gpkg_path, layer_name):
+    """
+    (fid-uri fara geometrie, fid-uri cu geometrie invalida) pentru un strat,
+    cu aceleasi criterii ca R25 (OGR/GEOS), dar FARA plafonul MAX_REPORTED.
+    """
+    from ..validations.gpkg_utils import open_ogr_layer
+
+    ds, ogr_layer = open_ogr_layer(gpkg_path, layer_name)
+    missing, invalid = [], []
+    ogr_layer.ResetReading()
+    for feature in ogr_layer:
+        geom = feature.GetGeometryRef()
+        if geom is None:
+            missing.append(feature.GetFID())
+        elif not geom.IsValid():
+            invalid.append(feature.GetFID())
+    ds = None
+    return missing, invalid
+
+
+def fix_geometry_valid(project, rule):
+    import processing
+    from qgis.core import QgsProcessingFeedback, QgsWkbTypes
+    from ..validations.gpkg_utils import find_gpkg_path
+
+    result = FixResult()
+    gpkg_path = find_gpkg_path(project)
+
+    # 1. scanare (fara modificari) - doar straturile cu date si geometrii defecte
+    todo = {}
+    for layer_name in rule.layer_names:
+        try:
+            layer = get_layer(project, layer_name)
+            if layer.featureCount() < 1:
+                continue
+            missing, invalid = _scan_bad_geometries(gpkg_path, layer_name)
+        except (ValueError, RuntimeError) as exc:
+            result.note(str(exc))
+            continue
+        if missing or invalid:
+            todo[layer_name] = (layer, missing, invalid)
+
+    if not todo:
+        result.note("Nu exista geometrii de reparat.")
+        return result
+
+    # 2. copie de rezerva obligatorie, inainte de orice modificare
+    backup_path = _backup_gpkg_in_project_folder(project, gpkg_path)
+    result.note(f"Copie de rezerva: {backup_path}")
+
+    # 3. strat cu strat
+    deleted_total = 0
+    for layer_name, (layer, missing, invalid) in todo.items():
+        new_geoms = {}
+        if invalid:
+            try:
+                out = processing.run(
+                    "native:fixgeometries",
+                    {"INPUT": layer, "OUTPUT": "memory:Fixed geometries"},
+                    feedback=QgsProcessingFeedback(),
+                )["OUTPUT"]
+            except Exception as exc:
+                result.note(f"'{layer_name}': Fix geometries a esuat - {exc}")
+                continue
+
+            # Fix geometries pastreaza ordinea (fid-urile stratului temporar
+            # NU sunt cele ale sursei), deci corespondenta se face pe pozitie.
+            src_ids = [f.id() for f in layer.getFeatures()]
+            fixed_feats = list(out.getFeatures())
+            if len(src_ids) != len(fixed_feats):
+                result.note(
+                    f"'{layer_name}': numar diferit de entitati dupa Fix geometries "
+                    f"({len(src_ids)} vs {len(fixed_feats)}) - strat neschimbat."
+                )
+                continue
+            fixed_by_fid = dict(zip(src_ids, (f.geometry() for f in fixed_feats)))
+
+            multi = QgsWkbTypes.isMultiType(layer.wkbType())
+            for fid in invalid:
+                geom = fixed_by_fid.get(fid)
+                if geom is None or geom.isNull() or geom.isEmpty():
+                    result.note(f"'{layer_name}' FID {fid}: rezultatul Fix geometries e gol - neschimbat.")
+                    continue
+                if QgsWkbTypes.flatType(geom.wkbType()) != QgsWkbTypes.flatType(layer.wkbType()):
+                    converted = geom.convertToType(layer.geometryType(), multi)
+                    if converted is None or converted.isNull() or converted.isEmpty():
+                        result.note(
+                            f"'{layer_name}' FID {fid}: tip de geometrie incompatibil dupa "
+                            "reparare - neschimbat."
+                        )
+                        continue
+                    geom = converted
+                new_geoms[fid] = geom
+            del out  # stratul temporar "Fixed geometries" nu ramane
+
+        if not layer.startEditing():
+            result.note(f"'{layer_name}': nu s-a putut porni editarea.")
+            continue
+        with _suppress_default_values(layer):
+            if missing:
+                layer.deleteFeatures(missing)
+            for fid, geom in new_geoms.items():
+                layer.changeGeometry(fid, geom)
+            if layer.commitChanges():
+                result.changed += len(new_geoms) + len(missing)
+                deleted_total += len(missing)
+            else:
+                result.note(f"'{layer_name}': commitChanges() a esuat - {layer.commitErrors()}")
+                layer.rollBack()
+    if deleted_total:
+        result.note(f"Entitati fara geometrie sterse: {deleted_total}.")
+    return result
+
+
 # -- R32/R33: arie/lungime recalculate din geometrie ---------------------------
 
 def _fix_computed_column(project, rule, compute, tolerance):
@@ -600,6 +761,16 @@ def fix_temporal_redate(project):
 # afiseaza butonul daca ORICARE dintre ele are esecuri in rezultatele curente.
 
 FIX_GROUPS = (
+    {
+        "rule_ids": (25,),
+        "label": "Repara R25 (geometrii invalide/lipsa)",
+        "extra_confirm": (
+            "Se creeaza intai o copie de rezerva a fisierului GPKG (cu data si ora) in "
+            "folderul proiectului. Entitatile fara geometrie vor fi STERSE; geometria "
+            "entitatilor invalide va fi inlocuita cu rezultatul 'Fix geometries'."
+        ),
+        "run": lambda project, rules: fix_geometry_valid(project, rules[25]),
+    },
     {
         "rule_ids": (31,),
         "label": "Repara R31 (geometrie 2D)",
