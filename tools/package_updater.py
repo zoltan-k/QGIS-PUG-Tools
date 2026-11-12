@@ -83,9 +83,11 @@ de referinta lipsa/neutilizate:
       cazurile, coloanele noi din sablonul curent, lipsa din proiect, sunt
       adaugate - vezi _migrate_rlud_schema().
 
-Inainte de orice modificare, proiectul (.qgz) si fisierul GPKG sunt salvate
-intr-o arhiva .zip de rezerva, cu data si ora curenta in numele arhivei, in
-acelasi folder cu proiectul. Daca aceasta copie de rezerva nu poate fi
+Inainte de orice modificare, proiectul (.qgz) si intregul folder al pachetului
+(GPKG + toate subfolderele, oricum s-ar numi - ca la "Copie de siguranta
+portabila"; straturile cu surse externe nu sunt copiate si raman neatinse)
+sunt salvate intr-o arhiva .zip de rezerva, cu data si ora curenta in numele
+arhivei, in acelasi folder cu proiectul. Daca aceasta copie de rezerva nu poate fi
 creata, actualizarea este anulata - nu se modifica nimic fara backup.
 
 Copierea tabelelor de referinta se face prin SQL direct (sqlite3), nu prin
@@ -118,6 +120,7 @@ from qgis.core import Qgis, QgsLayerTreeGroup, QgsMessageLog, QgsProject, QgsVec
 from qgis.PyQt.QtWidgets import QMessageBox
 
 from . import uat_boundary, virtual_layers
+from .portable_backup import add_package_folder, package_folder_for_gpkg
 from .template_paths import (
     GPKG_FOLDER,
     GPKG_RELATIVE,
@@ -230,6 +233,15 @@ def _create_backup(project_file, gpkg_path):
     try:
         with zipfile.ZipFile(backup_path, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.write(project_file, os.path.basename(project_file))
+
+            # acelasi continut ca la "Copie de siguranta portabila": intregul
+            # folder al pachetului (toate subfolderele, indiferent de numele
+            # lui - poate fi deja redenumit cu o data). Straturile cu surse
+            # externe nu sunt copiate si raman neatinse.
+            package_folder = package_folder_for_gpkg(gpkg_path, project_dir)
+            if package_folder:
+                add_package_folder(zf, package_folder, project_dir)
+                return backup_path
 
             try:
                 gpkg_arcname = os.path.relpath(gpkg_path, project_dir)
@@ -1629,6 +1641,14 @@ def _project_layers_for_tables(project, gpkg_path, table_names):
             found[layer.id()] = layer
     for table_name in wanted:
         for layer in project.mapLayersByName(table_name):
+            # potrivirea dupa nume atinge DOAR straturi ale acestui GPKG (sau
+            # invalide, cu sursa pierduta) - niciodata un strat valid din alta
+            # sursa (fisier extern, WMS, virtual...), chiar daca are acelasi nume.
+            path, _table = _layer_gpkg_table(layer)
+            if path is not None and path != gp:
+                continue
+            if path is None and layer.isValid():
+                continue
             found[layer.id()] = layer
     return list(found.values())
 
@@ -1920,8 +1940,8 @@ def _run_impl(iface):
         + "\n"
         "Datele din straturile cu continut (PlanSpatial, ZFExistenta etc.) NU sunt "
         "modificate.\n\n"
-        "Inainte de orice modificare, proiectul (.qgz) si fisierul GPKG vor fi "
-        "salvate intr-o arhiva .zip de rezerva, in acelasi folder cu proiectul.\n\n"
+        "Inainte de orice modificare, proiectul (.qgz) si intregul folder al pachetului "
+        "vor fi salvate intr-o arhiva .zip de rezerva, in acelasi folder cu proiectul.\n\n"
         "Continui?",
         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         QMessageBox.StandardButton.No,

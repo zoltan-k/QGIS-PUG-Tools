@@ -117,7 +117,8 @@ def _find_package_folder(project, project_dir):
     """
     Folderul pachetului PUG: subfolderul de nivel 1 (fata de folderul .qgz) care
     contine straturile proiectului, cu preferinta pentru cel al stratului
-    'PlanSpatial' / cel al carui nume se termina in _AAAALLZZ.
+    'PlanSpatial'. Numele folderului/GPKG-ului nu conteaza (poate contine deja
+    o data in loc de AAAALLZZ).
     """
     candidates = []
     ps = project.mapLayersByName("PlanSpatial")
@@ -135,14 +136,45 @@ def _find_package_folder(project, project_dir):
 
     if not candidates:
         raise _AbortBackup(
-            "Nu s-a gasit folderul pachetului PUG (..._" + DATE_PLACEHOLDER + ").\n\n"
+            "Nu s-a gasit folderul pachetului PUG.\n\n"
             "Folderul pachetului trebuie sa fie intr-un subfolder al folderului "
             "in care este salvat fisierul .qgz:\n" + project_dir
         )
-    for folder in candidates:
-        if os.path.basename(folder).endswith("_" + DATE_PLACEHOLDER):
-            return folder
+    # numele folderului nu conteaza (poate fi deja redenumit cu o data):
+    # primul candidat este cel al stratului 'PlanSpatial'.
     return candidates[0]
+
+
+def package_folder_for_gpkg(gpkg_path, project_dir):
+    """
+    Folderul pachetului unui GPKG (independent de numele folderului/fisierului):
+    subfolderul de nivel 1 fata de `project_dir` care il contine, sau, daca
+    GPKG-ul e in afara folderului proiectului, structura sablonului
+    (<pachet>/0_Seturi_date_spatiale/<gpkg>). None daca nu exista.
+    """
+    if _is_inside(gpkg_path, project_dir):
+        top = os.path.relpath(gpkg_path, project_dir).split(os.sep)[0]
+        folder = os.path.join(project_dir, top)
+        if top not in ("", ".", "..") and os.path.isdir(folder):
+            return folder
+        return None
+    folder = os.path.dirname(os.path.dirname(os.path.abspath(gpkg_path)))
+    return folder if os.path.isdir(folder) else None
+
+
+def add_package_folder(zf, package_folder, project_dir):
+    """
+    Adauga in `zf` intregul folder al pachetului (toate subfolderele, inclusiv
+    cele goale), cu caile relative la `project_dir`; pentru un pachet din afara
+    lui `project_dir` se foloseste doar numele folderului pachetului.
+    """
+    base = project_dir if _is_inside(package_folder, project_dir) else os.path.dirname(package_folder)
+    for root, dirs, files in os.walk(package_folder):
+        if not dirs and not files:
+            zf.write(root, os.path.relpath(root, base).replace(os.sep, "/") + "/")
+        for fname in files:
+            full = os.path.join(root, fname)
+            zf.write(full, os.path.relpath(full, base).replace(os.sep, "/"))
 
 
 def _classify_layers(project, package_folder):
@@ -501,12 +533,7 @@ def _run_impl(iface):
     try:
         with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.writestr(os.path.basename(project_file), project_bytes)
-            for root, dirs, files in os.walk(package_folder):
-                if not dirs and not files:
-                    zf.write(root, os.path.relpath(root, project_dir).replace(os.sep, "/") + "/")
-                for fname in files:
-                    full = os.path.join(root, fname)
-                    zf.write(full, os.path.relpath(full, project_dir).replace(os.sep, "/"))
+            add_package_folder(zf, package_folder, project_dir)
             for full, arc in extra_archive:
                 zf.write(full, arc)
         os.replace(tmp_zip, zip_path)

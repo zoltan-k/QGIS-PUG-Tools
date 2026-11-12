@@ -8,6 +8,18 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.3.1
+
+- `package_updater` (**Actualizeaza pachetul**): the backup made before an update
+  now contains the project and the **whole package folder** (all subfolders),
+  like the portable copy. The folder and the GeoPackage can have any name, e.g.
+  already renamed with a date instead of `AAAALLZZ`.
+- Layers from other sources (external files, WMS, virtual, ...) are never removed
+  from the project just because their name matches a dropped reference table;
+  they stay as they are.
+- The portable copy no longer prefers a `*_AAAALLZZ` folder: the folder of the
+  `PlanSpatial` layer is used whatever it is called.
+
 ## 2.2.3.0
 
 - `package_updater` (**Actualizeaza pachetul**): a damaged `layer_styles` table
