@@ -388,6 +388,43 @@ def fix_geometry_valid(project, rule):
     return result
 
 
+# -- R22: perechi cod/tip invalide in RLU/RLUD (stergere) ----------------------
+
+def fix_pair_membership_delete(project, rule):
+    from ..validations.gpkg_utils import find_gpkg_path
+
+    result = FixResult()
+    gpkg_path = find_gpkg_path(project)
+
+    todo = {}
+    for layer_name, fids in rule.failing_fids(project).items():
+        try:
+            todo[layer_name] = (get_layer(project, layer_name), fids)
+        except ValueError as exc:
+            result.note(str(exc))
+    if not todo:
+        result.note("Nu exista entitati de sters.")
+        return result
+
+    # copie de rezerva obligatorie, inainte de orice stergere
+    backup_path = _backup_gpkg_in_project_folder(project, gpkg_path)
+    result.note(f"Copie de rezerva: {backup_path}")
+
+    for layer_name, (layer, fids) in todo.items():
+        if not layer.startEditing():
+            result.note(f"'{layer_name}': nu s-a putut porni editarea.")
+            continue
+        with _suppress_default_values(layer):
+            layer.deleteFeatures(fids)
+            if layer.commitChanges():
+                result.changed += len(fids)
+                result.note(f"'{layer_name}': {len(fids)} entitati sterse.")
+            else:
+                result.note(f"'{layer_name}': commitChanges() a esuat - {layer.commitErrors()}")
+                layer.rollBack()
+    return result
+
+
 # -- R32/R33: arie/lungime recalculate din geometrie ---------------------------
 
 def _fix_computed_column(project, rule, compute, tolerance):
@@ -770,6 +807,20 @@ FIX_GROUPS = (
             "entitatilor invalide va fi inlocuita cu rezultatul 'Fix geometries'."
         ),
         "run": lambda project, rules: fix_geometry_valid(project, rules[25]),
+    },
+    {
+        "rule_ids": (22,),
+        "label": "Repara R22 (sterge perechi invalide)",
+        "extra_confirm": (
+            "ATENTIE: entitatile din RegulamentLocalUrbanism si "
+            "RegulamentLocalUrbanismDetaliat care incalca R22 (pereche cod/tip "
+            "inexistenta in ZFPropusa/ZonaReglementareSuplimentara sau NULL) vor fi "
+            "STERSE definitiv.\n\nPuteti alege 'No' (anulare) si le puteti corecta "
+            "mai intai manual.\n\nDaca alegeti 'Yes', se creeaza intai o copie de "
+            "rezerva a fisierului GPKG (cu data si ora) in folderul proiectului, "
+            "apoi se sterg entitatile."
+        ),
+        "run": lambda project, rules: fix_pair_membership_delete(project, rules[22]),
     },
     {
         "rule_ids": (31,),

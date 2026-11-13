@@ -8,6 +8,12 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.3.7
+
+- New **Repara R22** button in the validation results. It deletes every feature of `RegulamentLocalUrbanism` and `RegulamentLocalUrbanismDetaliat` that fails rule 22 (cod/tip pair not found in ZFPropusa / ZonaReglementareSuplimentara, or NULL) - all of them, not only the first 100 listed.
+- A warning dialog comes first: choose Yes to proceed, or No to cancel and fix the features manually.
+- On Yes, a timestamped GeoPackage-only backup (`<name>_backup_YYYYMMDD_HHMMSS.gpkg`) is written next to the project file before anything is deleted; without a backup nothing is modified.
+
 ## 2.2.3.6
 
 - New **Repara R25** button in the validation results (invalid or missing geometries). For every layer R25 reports: features with no geometry are deleted; features with invalid geometry get the geometry (geometry only, same feature id) from a temporary *Fix geometries* output, which is then discarded.

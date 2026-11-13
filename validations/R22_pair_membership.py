@@ -39,7 +39,7 @@ class PairMembershipRule(BaseValidationRule):
                 pairs.add((cod, tip))
         return pairs
 
-    def _validate_single_rule(self, project, rule):
+    def _validate_single_rule(self, project, rule, limit=MAX_REPORTED):
         failures = []
         validated_layer_name = rule["validated_layer"]
         cod_field, tip_field = rule["validated_fields"]
@@ -60,7 +60,7 @@ class PairMembershipRule(BaseValidationRule):
         if request is None:
             count = 0
             for feat in layer.getFeatures():
-                if count >= MAX_REPORTED:
+                if count >= limit:
                     break
                 failures.append(
                     ValidationFailure(
@@ -75,7 +75,7 @@ class PairMembershipRule(BaseValidationRule):
 
         count = 0
         for feat in layer.getFeatures(request):
-            if count >= MAX_REPORTED:
+            if count >= limit:
                 break
             cod, tip = feat[cod_field], feat[tip_field]
             if is_null(cod) or is_null(tip):
@@ -105,6 +105,30 @@ class PairMembershipRule(BaseValidationRule):
                 count += 1
 
         return failures
+
+    def failing_fids(self, project):
+        """
+        {nume_strat: [fid, ...]} pentru TOATE entitatile care esueaza R22 (fara
+        plafonul MAX_REPORTED), exclusiv straturile carora le lipsesc campurile
+        cod/tip din schema (acolo esecul e de structura, nu de entitate).
+        Folosit de fix-ul de stergere (tools/rule_fixes.py).
+        """
+        out = {}
+        for rule in self.rules:
+            try:
+                layer = get_layer(project, rule["validated_layer"])
+            except ValueError:
+                continue
+            names = {f.name() for f in layer.fields()}
+            if any(f not in names for f in rule["validated_fields"]):
+                continue
+            fids = [
+                f.fid
+                for f in self._validate_single_rule(project, rule, limit=float("inf"))
+            ]
+            if fids:
+                out.setdefault(rule["validated_layer"], []).extend(fids)
+        return out
 
     def run(self, project):
         all_failures = []
