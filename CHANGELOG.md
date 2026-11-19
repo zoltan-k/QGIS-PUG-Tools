@@ -8,6 +8,12 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.4.1
+
+- New **Repara R19** buttons (one for RegulamentLocalUrbanism, one for RegulamentLocalUrbanismDetaliat) in the validation results. They add one provisional row per code that R19 reports as missing from the regulament layer: code and type come from ZFPropusa / ZonaReglementareSuplimentara, `Tip_zona` is set from the matching domain, other text fields get `-` and numeric fields `0`.
+- Nothing existing is deleted or changed; NULL source values and type mismatches for an existing code are skipped. A warning (in the confirmation and in the result) reminds that the user must complete the RLU/RLUD details afterwards.
+- New fourth toolbar tool **Consolideaza straturile intr-un singur GPKG** (introduced in 2.2.4.0, not published separately): when the template layers of a project come from several `.gpkg` files, it brings them into one target GeoPackage after saving the project and making a backup zip; source files are never deleted.
+
 ## 2.2.3.7
 
 - New **Repara R22** button in the validation results. It deletes every feature of `RegulamentLocalUrbanism` and `RegulamentLocalUrbanismDetaliat` that fails rule 22 (cod/tip pair not found in ZFPropusa / ZonaReglementareSuplimentara, or NULL) - all of them, not only the first 100 listed.

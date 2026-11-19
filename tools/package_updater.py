@@ -122,7 +122,13 @@ from qgis.core import Qgis, QgsLayerTreeGroup, QgsMessageLog, QgsProject, QgsVec
 from qgis.PyQt.QtWidgets import QMessageBox
 
 from . import uat_boundary, virtual_layers
-from .portable_backup import add_package_folder, checkpoint_gpkgs, package_folder_for_gpkg
+from .gpkg_refs import orphaned_files
+from .portable_backup import (
+    add_package_folder,
+    checkpoint_gpkg_file as checkpoint_gpkgs_file,
+    checkpoint_gpkgs,
+    package_folder_for_gpkg,
+)
 from .template_paths import (
     GPKG_FOLDER,
     GPKG_RELATIVE,
@@ -217,8 +223,37 @@ def run(iface):
 
 # -- copie de rezerva (obligatorie, inainte de orice modificare) -------------
 
-def _create_backup(project_file, gpkg_path):
+def _add_extra_gpkgs(zf, extra_gpkgs, package_folder, project_dir):
+    """Adauga in arhiva fisiere .gpkg (+ -wal/-shm/-journal) din afara folderului pachetului."""
+    for path in extra_gpkgs:
+        if not os.path.isfile(path):
+            continue
+        if package_folder and _norm_path(path).startswith(_norm_path(package_folder) + os.sep):
+            continue  # deja in arhiva, odata cu folderul pachetului
+        checkpoint_gpkgs_file(path)
+        try:
+            if _norm_path(path).startswith(_norm_path(project_dir) + os.sep):
+                arc = os.path.relpath(path, project_dir)
+            else:
+                arc = os.path.join("Alte_surse", os.path.basename(path))
+        except ValueError:
+            arc = os.path.join("Alte_surse", os.path.basename(path))
+        arc = arc.replace(os.sep, "/")
+        zf.write(path, arc)
+        for suffix in ("-wal", "-shm", "-journal"):
+            if os.path.isfile(path + suffix):
+                zf.write(path + suffix, arc + suffix)
+
+
+def _create_backup(project_file, gpkg_path, extra_gpkgs=()):
     """
+    `extra_gpkgs`: fisiere .gpkg suplimentare (in afara folderului pachetului,
+    ex. in "Alte_surse") de inclus in arhiva, sub calea relativa la proiect (sau
+    sub "Alte_surse/" daca sunt pe alta unitate). Fisierele .gpkg din folderul
+    pachetului pe care proiectul nu le mai refera (orfane, vezi gpkg_refs) nu
+    sunt incluse.
+
+
     Salveaza proiectul (.qgz) si fisierul GPKG (+ fisierele auxiliare
     .gpkg-wal/.gpkg-shm/.gpkg-journal, daca exista) intr-o arhiva .zip de
     rezerva, cu data si ora curenta in numele arhivei, in acelasi folder cu
@@ -242,8 +277,10 @@ def _create_backup(project_file, gpkg_path):
             # externe nu sunt copiate si raman neatinse.
             package_folder = package_folder_for_gpkg(gpkg_path, project_dir)
             if package_folder:
-                checkpoint_gpkgs(package_folder)  # .gpkg + -wal consistente
-                add_package_folder(zf, package_folder, project_dir)
+                orphans = orphaned_files(package_folder, QgsProject.instance())
+                checkpoint_gpkgs(package_folder, orphans)  # .gpkg + -wal consistente
+                add_package_folder(zf, package_folder, project_dir, orphans)
+                _add_extra_gpkgs(zf, extra_gpkgs, package_folder, project_dir)
                 return backup_path
 
             try:
@@ -260,6 +297,7 @@ def _create_backup(project_file, gpkg_path):
                 sidecar = gpkg_path + suffix
                 if os.path.isfile(sidecar):
                     zf.write(sidecar, gpkg_arcname + suffix)
+            _add_extra_gpkgs(zf, extra_gpkgs, None, project_dir)
     except OSError as exc:
         raise _AbortUpdate(
             f"Nu s-a putut crea copia de rezerva inainte de actualizare:\n{backup_path}\n\n"

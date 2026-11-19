@@ -425,6 +425,84 @@ def fix_pair_membership_delete(project, rule):
     return result
 
 
+# -- R19: pre-populare randuri lipsa in RLU / RLUD ------------------------------
+
+R19_WARNING = (
+    "ATENTIE: randurile adaugate contin DOAR valori provizorii (text '-', numere 0, "
+    "plus codul/tipul preluate din ZFPropusa/ZonaReglementareSuplimentara). Este "
+    "OBLIGATIA UTILIZATORULUI sa completeze corect toate detaliile din "
+    "RegulamentLocalUrbanism / RegulamentLocalUrbanismDetaliat dupa aceasta remediere."
+)
+
+# (strat de referinta, strat sursa) -> valoarea campului "Tip_zona" (domeniile
+# _tip_zona / _tip_subzona din sablon, vezi validations/R13_allowed_values.py)
+_R19_TIP_ZONA = {
+    ("RegulamentLocalUrbanism", "ZFPropusa"): "Zonă funcțională",
+    ("RegulamentLocalUrbanism", "ZonaReglementareSuplimentara"): "Zonă de reglementare suplimentară / de restricții",
+    ("RegulamentLocalUrbanismDetaliat", "ZFPropusa"): "Subzonă funcțională",
+    ("RegulamentLocalUrbanismDetaliat", "ZonaReglementareSuplimentara"): "Zonă de reglementare suplimentară de detaliu",
+}
+
+
+def r19_has_missing(project, rule, layer_name):
+    try:
+        return any(m["ref_layer"] == layer_name for m in rule.missing_pairs(project))
+    except Exception:
+        return True  # nu ascunde butonul din cauza unei erori de analiza
+
+
+def fix_reference_prepopulate(project, rule, layer_name):
+    from qgis.core import QgsFeature
+
+    result = FixResult()
+    result.note(R19_WARNING)
+    missing = [m for m in rule.missing_pairs(project) if m["ref_layer"] == layer_name]
+    if not missing:
+        result.note(f"'{layer_name}': nu exista perechi de adaugat.")
+        return result
+    try:
+        layer = get_layer(project, layer_name)
+    except ValueError as exc:
+        result.note(str(exc))
+        return result
+
+    fields = layer.fields()
+    pk_indexes = set(layer.primaryKeyAttributes())
+    if not layer.startEditing():
+        result.note(f"'{layer_name}': nu s-a putut porni editarea.")
+        return result
+    new_features = []
+    for entry in missing:
+        feat = QgsFeature(fields)
+        for idx in range(fields.count()):
+            if idx in pk_indexes:
+                continue
+            field = fields.at(idx)
+            name = field.name()
+            if name == entry["code_field"]:
+                value = entry["code"]
+            elif name == entry["type_field"]:
+                value = entry["type"]
+            elif name == "Tip_zona":
+                value = _R19_TIP_ZONA.get((layer_name, entry["source_layer"]), "-")
+            elif field.isNumeric():
+                value = 0
+            else:
+                value = "-"
+            feat.setAttribute(idx, value)
+        new_features.append(feat)
+
+    with _suppress_default_values(layer):
+        ok = layer.addFeatures(new_features)
+        if ok and layer.commitChanges():
+            result.changed += len(new_features)
+            result.note(f"'{layer_name}': {len(new_features)} randuri provizorii adaugate.")
+        else:
+            result.note(f"'{layer_name}': adaugarea a esuat - {layer.commitErrors()}")
+            layer.rollBack()
+    return result
+
+
 # -- R32/R33: arie/lungime recalculate din geometrie ---------------------------
 
 def _fix_computed_column(project, rule, compute, tolerance):
@@ -798,6 +876,29 @@ def fix_temporal_redate(project):
 # afiseaza butonul daca ORICARE dintre ele are esecuri in rezultatele curente.
 
 FIX_GROUPS = (
+    {
+        "rule_ids": (19,),
+        "label": "Repara R19 (adauga randuri in RLU)",
+        "extra_confirm": (
+            "Se ADAUGA in RegulamentLocalUrbanism randuri provizorii pentru codurile "
+            "lipsa (text '-', numere 0). Nu se sterge/modifica nimic existent.\n\n"
+            + R19_WARNING
+        ),
+        "applicable": lambda project, rules: r19_has_missing(project, rules[19], "RegulamentLocalUrbanism"),
+        "run": lambda project, rules: fix_reference_prepopulate(project, rules[19], "RegulamentLocalUrbanism"),
+    },
+    {
+        "rule_ids": (19,),
+        "label": "Repara R19 (adauga randuri in RLUD)",
+        "extra_confirm": (
+            "Se ADAUGA in RegulamentLocalUrbanismDetaliat randuri provizorii pentru "
+            "codurile lipsa (Cod_SZF_ZRS_D, Tip_zona, Tip_SZF_ZRS_D completate; restul "
+            "text '-', numere 0). Nu se sterge/modifica nimic existent.\n\n"
+            + R19_WARNING
+        ),
+        "applicable": lambda project, rules: r19_has_missing(project, rules[19], "RegulamentLocalUrbanismDetaliat"),
+        "run": lambda project, rules: fix_reference_prepopulate(project, rules[19], "RegulamentLocalUrbanismDetaliat"),
+    },
     {
         "rule_ids": (25,),
         "label": "Repara R25 (geometrii invalide/lipsa)",

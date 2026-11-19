@@ -4,7 +4,7 @@
   "serialNumber": "urn:uuid:7c1f3a52-96b4-4e0e-9d57-2a8b5c0e41d3",
   "version": 2,
   "metadata": {
-    "timestamp": "2026-11-04T00:00:00Z",
+    "timestamp": "2026-11-19T00:00:00Z",
     "tools": {
       "components": [
         {
@@ -19,7 +19,7 @@
       "type": "application",
       "bom-ref": "pkg:generic/pugtools",
       "name": "PUG Tools",
-      "version": "2.2.3.7",
+      "version": "2.2.4.1",
       "description": "QGIS plugin (pure Python, no compiled code) that creates and validates Romanian PUG/PUZ/PUD/PATJ/PMUD GeoPackage projects. Version taken from metadata.txt.",
       "scope": "required",
       "licenses": [
@@ -227,15 +227,15 @@
       "type": "data",
       "bom-ref": "asset-icons",
       "name": "SVG toolbar icons (ui/icons/)",
-      "description": "Seven first-party SVG files.",
+      "description": "Eight first-party SVG files.",
       "scope": "required"
     },
     {
       "type": "application",
       "bom-ref": "tool-7zip",
       "name": "7-Zip",
-      "version": "26.05",
-      "purl": "pkg:generic/7-zip@26.05",
+      "version": "26.06",
+      "purl": "pkg:generic/7-zip@26.06",
       "description": "Builds the distributable PUGTools-X.Y.Z.Z.zip (no build script in the repository). The zip must exclude .git, .gitignore, .idea, .claude, __pycache__, .local_resources, dev.",
       "scope": "excluded",
       "licenses": [

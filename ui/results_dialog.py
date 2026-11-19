@@ -206,6 +206,10 @@ class ValidationResultsDialog(QDialog):
             group
             for group in rule_fixes.FIX_GROUPS
             if any(rid in failing_ids and rid in self._rule_by_id for rid in group["rule_ids"])
+            and (
+                "applicable" not in group
+                or group["applicable"](QgsProject.instance(), self._rule_by_id)
+            )
         ]
 
         update_reason = self._template_update_reason(failing_ids)

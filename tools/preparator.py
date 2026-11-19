@@ -42,6 +42,7 @@ De ce se goleste proiectul (project.clear()) inainte de shutil.copytree:
     original este redeschis din project_file.
 """
 
+import os
 import re
 import shutil
 import traceback
@@ -49,6 +50,8 @@ from datetime import datetime
 
 from qgis.PyQt.QtWidgets import QMessageBox
 from qgis.core import Qgis, QgsMessageLog, QgsProject
+
+from .gpkg_refs import norm_path, orphaned_files
 
 LOG_TAG = "PUG Tools"
 
@@ -126,6 +129,11 @@ def _run_impl(iface):
     project.commitChanges()
     project.write()
 
+    # fisiere .gpkg din folderul pachetului pe care proiectul nu le mai refera
+    # (ex. dupa "Consolideaza straturile") nu intra in pachetul oficial; calculat
+    # inainte de project.clear(), cat timp straturile mai sunt incarcate.
+    orphans = orphaned_files(pug_folder, project)
+
     # goleste proiectul pentru a elibera blocarea fisierului .gpkg (vezi
     # explicatia din antetul modulului), inainte de copierea pe disc
     project.clear()
@@ -139,7 +147,13 @@ def _run_impl(iface):
             r".*/(HR_[^/]+_" + thisday + r")", new_pug_folder, "folderul de baza"
         )
 
-        shutil.copytree(pug_folder, new_pug_folder, dirs_exist_ok=True)
+        def _skip_orphans(directory, names):
+            return [n for n in names if norm_path(os.path.join(directory, n)) in orphans]
+
+        shutil.copytree(
+            pug_folder, new_pug_folder, dirs_exist_ok=True,
+            ignore=_skip_orphans if orphans else None,
+        )
 
         o_path = new_pug_folder + "/" + gpkg_rel_path
         n_path = new_pug_folder + "/" + newfile

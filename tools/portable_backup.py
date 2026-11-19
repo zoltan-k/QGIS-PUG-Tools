@@ -48,6 +48,8 @@ import xml.etree.ElementTree as ET
 from qgis.PyQt.QtWidgets import QMessageBox
 from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsProviderRegistry
 
+from .gpkg_refs import orphaned_files
+
 LOG_TAG = "PUG Tools"
 DATE_PLACEHOLDER = "AAAALLZZ"
 EXTRA_FOLDER = "Alte_surse"
@@ -163,41 +165,52 @@ def package_folder_for_gpkg(gpkg_path, project_dir):
     return folder if os.path.isdir(folder) else None
 
 
-def checkpoint_gpkgs(package_folder):
+def checkpoint_gpkgs(package_folder, exclude=()):
     """
     Muta continutul fisierelor -wal in fisierele .gpkg ale pachetului
     (PRAGMA wal_checkpoint(TRUNCATE)), inainte de arhivare, ca .gpkg + -wal + -shm
     sa fie consistente. Merge si cu QGIS deschis; best-effort - o eroare (fisier
     blocat etc.) nu opreste copia, care include oricum si fisierele -wal/-shm.
+    `exclude`: cai normalizate (vezi gpkg_refs.orphaned_files) ignorate.
     """
     for root, _dirs, files in os.walk(package_folder):
         for fname in files:
             if not fname.lower().endswith(".gpkg"):
                 continue
             path = os.path.join(root, fname)
-            try:
-                con = sqlite3.connect("file:" + path.replace("\\", "/").replace("?", "%3f").replace("#", "%23") + "?mode=rw", uri=True, timeout=5)
-                try:
-                    con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-                finally:
-                    con.close()
-            except Exception as exc:  # noqa: BLE001
-                QgsMessageLog.logMessage(
-                    f"Checkpoint WAL esuat pentru {path}: {exc}", LOG_TAG, level=Qgis.Warning
-                )
+            if _norm(path) in exclude:
+                continue
+            checkpoint_gpkg_file(path)
 
 
-def add_package_folder(zf, package_folder, project_dir):
+def checkpoint_gpkg_file(path):
+    """Checkpoint WAL pentru un singur .gpkg (best-effort, vezi checkpoint_gpkgs)."""
+    try:
+        con = sqlite3.connect("file:" + path.replace("\\", "/").replace("?", "%3f").replace("#", "%23") + "?mode=rw", uri=True, timeout=5)
+        try:
+            con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        finally:
+            con.close()
+    except Exception as exc:  # noqa: BLE001
+        QgsMessageLog.logMessage(
+            f"Checkpoint WAL esuat pentru {path}: {exc}", LOG_TAG, level=Qgis.Warning
+        )
+
+
+def add_package_folder(zf, package_folder, project_dir, exclude=()):
     """
     Adauga in `zf` intregul folder al pachetului (toate subfolderele, inclusiv
     cele goale), cu caile relative la `project_dir`; pentru un pachet din afara
     lui `project_dir` se foloseste doar numele folderului pachetului.
+    `exclude`: cai normalizate (fisiere .gpkg orfane si auxiliarele lor, vezi
+    gpkg_refs.orphaned_files) care nu se includ in arhiva.
     """
     base = project_dir if _is_inside(package_folder, project_dir) else os.path.dirname(package_folder)
     for root, dirs, files in os.walk(package_folder):
-        if not dirs and not files:
+        kept = [f for f in files if _norm(os.path.join(root, f)) not in exclude]
+        if not dirs and not kept:
             zf.write(root, os.path.relpath(root, base).replace(os.sep, "/") + "/")
-        for fname in files:
+        for fname in kept:
             full = os.path.join(root, fname)
             zf.write(full, os.path.relpath(full, base).replace(os.sep, "/"))
 
@@ -528,6 +541,9 @@ def _run_impl(iface):
 
         package_folder = _find_package_folder(other, project_dir)
         memory, outside, keep = _classify_layers(other, package_folder)
+        # fisiere .gpkg din pachet pe care proiectul nu le mai refera (ex. dupa
+        # "Consolideaza straturile") - nu se arhiveaza
+        orphans = orphaned_files(package_folder, other)
 
         # 3. avertisment unic
         if memory or outside or keep:
@@ -558,12 +574,12 @@ def _run_impl(iface):
     finally:
         other.clear()
 
-    checkpoint_gpkgs(package_folder)
+    checkpoint_gpkgs(package_folder, orphans)
     tmp_zip = zip_path + ".tmp"
     try:
         with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.writestr(os.path.basename(project_file), project_bytes)
-            add_package_folder(zf, package_folder, project_dir)
+            add_package_folder(zf, package_folder, project_dir, orphans)
             for full, arc in extra_archive:
                 zf.write(full, arc)
         os.replace(tmp_zip, zip_path)

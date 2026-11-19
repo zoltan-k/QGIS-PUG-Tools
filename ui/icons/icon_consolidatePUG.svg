@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="24" width="24">
+  <!-- open folder background (same as icon_updatePUG.svg) -->
+  <g stroke="#c9930b" stroke-width="0.4" stroke-linejoin="round">
+    <path d="M2 6h6.5l1.5 2h11v11h-19z" fill="#f0b400"/>
+    <path d="M2.3 10.5l19.2-1-1.7 9.5h-16z" fill="#ffce54"/>
+  </g>
+
+  <!-- PUG label on the folder -->
+  <text x="2.4" y="16.3" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="6" letter-spacing="-0.4" fill="#7a5900">PUG</text>
+
+  <!-- merge overlay (replaces the refresh badge of icon_updatePUG.svg): a bold
+       arrow fed by two curved branches (own drawing, in the spirit of the usual
+       "merge" pictogram), ~11x11 at the bottom-right. White halo for legibility. -->
+  <g transform="translate(13,12.5)" stroke-linejoin="round">
+    <path d="M5.5 0 L8.7 3.8 H6.7 V6.2 C6.7 8.2 8.5 8.4 11 8.4 V10.8 C7.6 10.8 5.5 9.4 5.5 7 C5.5 9.4 3.4 10.8 0 10.8 V8.4 C2.5 8.4 4.3 8.2 4.3 6.2 V3.8 H2.3 Z"
+          fill="#ffffff" stroke="#ffffff" stroke-width="1.8"/>
+    <path d="M5.5 0 L2.3 3.8 H4.3 V6.2 C4.3 8.2 2.5 8.4 0 8.4 V10.8 C3.4 10.8 5.5 9.4 5.5 7 Z" fill="#4f86c6"/>
+    <path d="M5.5 0 L8.7 3.8 H6.7 V6.2 C6.7 8.2 8.5 8.4 11 8.4 V10.8 C7.6 10.8 5.5 9.4 5.5 7 Z" fill="#2b5b95"/>
+  </g>
+</svg>

@@ -166,6 +166,60 @@ class ReferenceCorrelationRule(BaseValidationRule):
 
         return failures
 
+    def missing_pairs(self, project):
+        """
+        Perechile (cod, tip) din straturile sursa al caror COD lipseste complet
+        din stratul de referinta (esecul "nu are corespondent"), fara plafon,
+        deduplicate pe cod. NU include NULL-uri in sursa si nici nepotrivirile
+        de tip pentru un cod existent (acolo nu exista o singura valoare
+        corecta - un rand nou ar duplica codul).
+
+        Returneaza o lista de dict-uri:
+        {ref_layer, code_field, type_field, code, type, source_layer}
+        Folosit de fix-ul de pre-populare (tools/rule_fixes.py).
+        """
+        out = []
+        seen = set()
+        for rule in self.rules:
+            ref_layer_name = rule["layer"]
+            source_layer_name = next(iter(rule["matches_fields_from"]))
+            code_src, type_src = rule["matches_fields_from"][source_layer_name]
+            code_ref, type_ref = rule["validated_fields"]
+            try:
+                ref_layer = self._get_layer(project, ref_layer_name)
+                source_layer = self._get_layer(project, source_layer_name)
+            except ValueError:
+                continue
+            ref_names = {f.name() for f in ref_layer.fields()}
+            src_names = {f.name() for f in source_layer.fields()}
+            if code_ref not in ref_names or type_ref not in ref_names:
+                continue
+            if code_src not in src_names or type_src not in src_names:
+                continue
+            lookup = self._build_lookup(ref_layer, code_ref, type_ref)
+            request = self._request_for_fields(source_layer, [code_src, type_src])
+            for feat in source_layer.getFeatures(request):
+                code_val, type_val = feat[code_src], feat[type_src]
+                if self._is_null(code_val) or self._is_null(type_val):
+                    continue
+                if code_val in lookup:
+                    continue
+                key = (ref_layer_name, code_val)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(
+                    {
+                        "ref_layer": ref_layer_name,
+                        "code_field": code_ref,
+                        "type_field": type_ref,
+                        "code": code_val,
+                        "type": type_val,
+                        "source_layer": source_layer_name,
+                    }
+                )
+        return out
+
     def run(self, project):
         all_failures = []
         for rule in self.rules:

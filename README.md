@@ -11,7 +11,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## What it does
 
-Nine tools, all available from the plugin toolbar/menu inside QGIS:
+Ten tools, all available from the plugin toolbar/menu inside QGIS:
 
 1. **Validare** — runs the full set of validation rules against a
    GeoPackage's layers (attribute correlation, allowed values, value
@@ -33,6 +33,14 @@ Nine tools, all available from the plugin toolbar/menu inside QGIS:
    outside the package (paths rewritten relative). It asks whether to save
    unsaved changes, and warns that memory layers are lost and that URI/virtual
    layers stay as they are. The open project is never modified.
+   **Consolideaza straturile** (fourth button in the first group) — when the
+   template layers of a project come from several `.gpkg` files, brings them
+   into one: pick the target (only standard `<JUD>_<UAT>_<SIRUTA>_<TIP>_<date>.gpkg`
+   names qualify, `AAAALLZZ` preselected; if none qualifies a new gpkg is built
+   from the template), tables from the other files replace the target's
+   (`_*` reference tables are only re-pointed). Saves everything and makes a
+   backup zip first; source files are never deleted, and files the project no
+   longer references are ignored by backups and the portable copy.
 7. **Editeaza sablonul** / **Salveaza sablonul** — safely edit the bundled
    template's structure, styles, and field properties, with protection
    against leftover features in layers that must ship empty.
