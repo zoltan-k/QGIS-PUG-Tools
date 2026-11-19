@@ -26,6 +26,7 @@ from qgis.PyQt.QtWidgets import (
 from qgis.core import QgsProject
 
 from ..tools import package_updater, rule_fixes
+from ..validations import gpkg_utils
 
 # regula "Structura GPKG conforma cu sablonul" - esecul ei sugereaza un pachet
 # creat cu alta versiune de sablon (vezi _template_update_reason).
@@ -282,13 +283,7 @@ class ValidationResultsDialog(QDialog):
         QMessageBox.information(self, "Remediere aplicata", result.summary())
 
     def _rerun_rules(self, project):
-        all_failures = []
-        errors = []
-        for rule in self._rules:
-            try:
-                all_failures.extend(rule.run(project))
-            except Exception as exc:
-                errors.append(f"R{rule.rule_id} {rule.name}: {exc}")
+        all_failures, errors = gpkg_utils.run_rules(project, self._rules)
         self.failures = all_failures
         self.errors = errors
         self._refresh()

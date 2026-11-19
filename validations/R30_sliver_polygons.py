@@ -21,7 +21,7 @@ import math
 from osgeo import ogr
 
 from .base import BaseValidationRule, ValidationFailure
-from .gpkg_utils import MAX_REPORTED
+from .gpkg_utils import MAX_REPORTED, resolve_path
 
 AREA_MIN_THRESHOLD = 1e-6
 HARD_WIDTH_M = 1.0
@@ -51,7 +51,7 @@ class SliverPolygonRule(BaseValidationRule):
                 f"Exista mai multe straturi cu numele '{layer_name}' in proiect."
             )
         source = layers[0].source()
-        return source.split("|")[0]
+        return resolve_path(source.split("|")[0])
 
     @staticmethod
     def _equivalent_rectangle(part):

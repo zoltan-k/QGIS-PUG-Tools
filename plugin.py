@@ -43,7 +43,7 @@ from .tools import gpkg_consolidator
 from .ui.results_dialog import ValidationResultsDialog
 from .ui.rule_selection_dialog import RuleSelectionDialog
 from .ui.about_dialog import AboutDialog
-from .validations import registry
+from .validations import gpkg_utils, registry
 
 # Importul de mai jos declanseaza inregistrarea regulilor definite in
 # rules_config.py (register_rule(...) se executa la incarcarea modulului).
@@ -255,15 +255,7 @@ class PugToolsPlugin:
     def _run_rules_and_show_results(self, rules):
         project = QgsProject.instance()
 
-        all_failures = []
-        errors = []
-
-        for rule in rules:
-            try:
-                failures = rule.run(project)
-                all_failures.extend(failures)
-            except Exception as exc:  # nu opri celelalte reguli daca una esueaza
-                errors.append(f"R{rule.rule_id} {rule.name}: {exc}")
+        all_failures, errors = gpkg_utils.run_rules(project, rules)
 
         dialog = ValidationResultsDialog(
             all_failures, errors, rules=rules, parent=self.iface.mainWindow(), iface=self.iface

@@ -30,3 +30,23 @@ def get_boundary_buffer_m():
 def set_boundary_buffer_m(value):
     settings = QgsSettings()
     settings.setValue(_BOUNDARY_BUFFER_KEY, float(value))
+
+
+# Copie locala a GPKG-ului pe durata validarii (vezi validations/gpkg_utils.py:
+# local_copy_session). "auto" = doar daca proiectul sta pe o unitate de retea.
+LOCAL_COPY_MODES = ("auto", "always", "never")
+LOCAL_COPY_DEFAULT = "auto"
+_LOCAL_COPY_KEY = "PUGTools/validation_local_copy"
+
+
+def get_local_copy_mode():
+    settings = QgsSettings()
+    value = str(settings.value(_LOCAL_COPY_KEY, LOCAL_COPY_DEFAULT)).strip().lower()
+    return value if value in LOCAL_COPY_MODES else LOCAL_COPY_DEFAULT
+
+
+def set_local_copy_mode(value):
+    if value not in LOCAL_COPY_MODES:
+        raise ValueError(f"Mod invalid pentru copia locala: {value!r}")
+    settings = QgsSettings()
+    settings.setValue(_LOCAL_COPY_KEY, value)

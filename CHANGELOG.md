@@ -8,6 +8,12 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.5.0
+
+- **Much faster validation when the project is on a network share or mapped drive.** A GeoPackage is a SQLite database, and over a network every small read and file lock is a round trip, so validating a real project from a mapped drive took almost 6 minutes (about 2.5 seconds with this version). Validation now copies the `.gpkg` once to a local temporary folder, runs all rules against the copy and deletes it afterwards; the original file is only read, never written. If the copy fails, the rules read the original as before.
+- New setting in **Despre** (section "Validare - acces la fisiere (retea)"): **Automat** (default; only for network locations - UNC paths and mapped drives such as `T:\`), **Intotdeauna** (also for local drives or network drives that Windows reports as local, e.g. some cloud-drive drivers) or **Niciodata** (read the original file directly).
+- Per-rule and total validation times are written to the QGIS log panel, tab "PUG Tools".
+
 ## 2.2.4.1
 
 - New **Repara R19** buttons (one for RegulamentLocalUrbanism, one for RegulamentLocalUrbanismDetaliat) in the validation results. They add one provisional row per code that R19 reports as missing from the regulament layer: code and type come from ZFPropusa / ZonaReglementareSuplimentara, `Tip_zona` is set from the matching domain, other text fields get `-` and numeric fields `0`.

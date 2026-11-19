@@ -5,6 +5,7 @@ Regula de validare: Se verifica straturile fisierul GPKG sa contina date
 
 from qgis.core import QgsFeatureRequest, NULL
 from .base import BaseValidationRule, ValidationFailure
+from .gpkg_utils import get_layer
 
 
 class LayerDataRule(BaseValidationRule):
@@ -20,15 +21,7 @@ class LayerDataRule(BaseValidationRule):
 
     @staticmethod
     def _get_layer(project, layer_name):
-        layers = project.mapLayersByName(layer_name)
-        if not layers:
-            raise ValueError(f"Stratul '{layer_name}' nu a fost gasit in proiect.")
-        if len(layers) > 1:
-            raise ValueError(
-                f"Exista mai multe straturi cu numele '{layer_name}' in proiect; "
-                "foloseste un identificator unic (layer id)."
-            )
-        return layers[0]
+        return get_layer(project, layer_name)
 
 
     # -- core logic ----------------------------------------------------------

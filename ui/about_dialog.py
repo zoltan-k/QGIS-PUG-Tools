@@ -17,6 +17,7 @@ from qgis.PyQt.QtCore import QUrl, Qt
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
     QApplication,
+    QComboBox,
     QDialog,
     QDoubleSpinBox,
     QFrame,
@@ -176,6 +177,11 @@ class AboutDialog(QDialog):
 
         layout.addWidget(_bold(QLabel("Validare geometrica (R26/R27)")))
         layout.addLayout(self._build_validation_settings_rows())
+
+        layout.addWidget(_make_separator())
+
+        layout.addWidget(_bold(QLabel("Validare - acces la fisiere (retea)")))
+        layout.addLayout(self._build_local_copy_rows())
 
     def _refresh(self):
         self._build_data_sections()
@@ -467,6 +473,56 @@ class AboutDialog(QDialog):
         section.addWidget(note)
 
         return section
+
+    # -- sectiunea copie locala (validare pe partajari de retea) ----------------
+
+    _LOCAL_COPY_LABELS = (
+        ("auto", "Automat (doar pentru unitati de retea)"),
+        ("always", "Intotdeauna"),
+        ("never", "Niciodata"),
+    )
+
+    def _build_local_copy_rows(self):
+        section = QVBoxLayout()
+
+        row = QHBoxLayout()
+        row.addWidget(_bold(QLabel("Copie locala a GPKG la validare:")))
+
+        self._local_copy_combo = QComboBox()
+        for value, label in self._LOCAL_COPY_LABELS:
+            self._local_copy_combo.addItem(label, value)
+        index = self._local_copy_combo.findData(pug_settings.get_local_copy_mode())
+        self._local_copy_combo.setCurrentIndex(max(index, 0))
+        row.addWidget(self._local_copy_combo)
+
+        save_btn = QPushButton("Salveaza")
+        save_btn.clicked.connect(self._on_save_local_copy_mode)
+        row.addWidget(save_btn)
+        row.addStretch()
+        section.addLayout(row)
+
+        note = QLabel(
+            "Un GPKG este o baza SQLite: pe o partajare de retea fiecare citire mica si "
+            "fiecare blocare de fisier e un round-trip, iar regulile redeschid fisierul de "
+            "zeci de ori - validarea poate dura de zeci de ori mai mult decat local. Cu "
+            "copie locala, fisierul GPKG este copiat o singura data intr-un folder temporar "
+            "(sters la final), iar regulile citesc din copie; originalul nu este modificat. "
+            "Automat: doar daca proiectul sta pe o unitate de retea (cale UNC sau unitate "
+            "mapata, ex. T:\\). Intotdeauna: si pentru unitati locale sau pentru unitati de "
+            "retea nerecunoscute (ex. unele drivere cloud). Niciodata: se citeste direct din "
+            "fisierul original. Se aplica la urmatoarea validare."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color: gray; font-style: italic;")
+        section.addWidget(note)
+
+        return section
+
+    def _on_save_local_copy_mode(self):
+        pug_settings.set_local_copy_mode(self._local_copy_combo.currentData())
+        QMessageBox.information(
+            self, "Setari validare", "Setarea pentru copia locala a fost salvata."
+        )
 
     def _on_save_boundary_buffer(self):
         pug_settings.set_boundary_buffer_m(self._buffer_spin.value())
