@@ -37,7 +37,7 @@ from ..tools import template_editor, template_paths, uat_boundary
 from . import updater
 
 LOG_TAG = "PUG Tools"
-README_URL = "https://github.com/zoltan-k/QGIS-PUG-Tools#readme"
+README_URL = 'https://github.com/zoltan-k/QGIS-PUG-Tools#readme'
 
 
 def _read_metadata(plugin_dir):
@@ -119,7 +119,7 @@ class AboutDialog(QDialog):
             desc_label.setWordWrap(True)
             self._outer_layout.addWidget(desc_label)
 
-        readme_label = QLabel(f'<a href="{README_URL}">Documentatie completa (README, GitHub)</a>')
+        readme_label = QLabel(f'<a href="{README_URL}">Documentatie completa</a>')
         readme_label.setOpenExternalLinks(True)
         self._outer_layout.addWidget(readme_label)
 
@@ -343,7 +343,7 @@ class AboutDialog(QDialog):
 
         layout.addWidget(_make_separator())
 
-        layout.addWidget(_bold(QLabel("Validare - acces la fisiere (retea)")))
+        layout.addWidget(_bold(QLabel("Validare pt fisiere stocate in retea")))
         layout.addLayout(self._build_local_copy_rows())
 
     def _refresh(self):
@@ -409,8 +409,8 @@ class AboutDialog(QDialog):
         section.addLayout(row)
 
         note = QLabel(
-            "Actiuni rar folosite - editeaza structura/stilurile sablonului insusi, "
-            "nu ale proiectului curent. Foloseste-le doar daca stii ce faci."
+            "Editeaza structura/stilurile sablonului insusi, "
+            "modificarile s-ar putea pierde la o actualizare a sablonului PUG"
         )
         note.setWordWrap(True)
         note.setStyleSheet("color: gray; font-style: italic;")
@@ -468,11 +468,9 @@ class AboutDialog(QDialog):
                 active_ok,
                 buttons=active_buttons,
                 note=(
-                    'Folosita si editata de "Editeaza sablonul"/"Salveaza sablonul"; NU este '
-                    "suprascrisa automat la actualizarea plugin-ului - de aceea unele "
-                    "corectii aduse sablonului bundled pot necesita apasarea butonului "
-                    '"Actualizeaza" de mai sus. ATENTIE: actualizarea/stergerea elimina '
-                    "orice modificare facuta local si nesalvata inca in sablonul din plugin."
+                    'Copia folosita ca si sablon in toate activitatile legate de sablon. poate fi editata cu ' 
+                    ' "Editeaza sablonul"/"Salveaza sablonul"; '
+                    'Daca exista, trebuie actualizat explicit la variante noi de sablon'
                 ),
             )
         )
@@ -558,8 +556,7 @@ class AboutDialog(QDialog):
                 per_uat_ok,
                 buttons=per_uat_buttons,
                 note=(
-                    "Cate un fisier mic (JSON) per UAT deja folosit la crearea unui "
-                    "proiect - evita reinterogarea serviciului online pentru acelasi UAT."
+                    "Cache de metadate pt UAT-uri deja folosite"
                 ),
             )
         )
@@ -592,11 +589,8 @@ class AboutDialog(QDialog):
                 full_exists,
                 buttons=full_buttons,
                 note=(
-                    "Folosit doar daca interogarea online filtrata per-UAT esueaza - "
-                    "in mod normal nu exista, deoarece filtrarea per-UAT e suficienta. "
-                    '"Actualizeaza" descarca din nou intregul set (trafic mare); '
-                    '"Sterge" il elimina (va fi redescarcat automat doar daca va fi '
-                    "din nou necesar ca rezerva)."
+                    "Sursa offline pt geometria de UAT-uri nationale." 
+                    "Optional, pt cazul in care sursele online sunt inaccesibile"
                 ),
             )
         )
@@ -636,7 +630,7 @@ class AboutDialog(QDialog):
     # -- sectiunea copie locala (validare pe partajari de retea) ----------------
 
     _LOCAL_COPY_LABELS = (
-        ("auto", "Automat (doar pentru unitati de retea)"),
+        ("auto", "Automat"),
         ("always", "Intotdeauna"),
         ("never", "Niciodata"),
     )
@@ -662,7 +656,7 @@ class AboutDialog(QDialog):
 
         note = QLabel(
             "Accelereaza validarea pe unitati de retea. Se aplica la urmatoarea validare. "
-            "Detalii in README."
+            "Detalii in README. <br>Default: Automat - incearca sa detecteze daca fisierul gpkg activ este stocat in retea"
         )
         note.setWordWrap(True)
         note.setStyleSheet("color: gray; font-style: italic;")

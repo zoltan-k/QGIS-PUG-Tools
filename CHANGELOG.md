@@ -8,6 +8,9 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.6.1
+- New plugin description and About texts (QGIS Plugin Manager), shorter notes in "Despre".
+
 ## 2.2.6.0
 - Template updated to the official 3.1.1 (validation package 2026.11.13): lookup tables are now `sys_*` (was `_*`), version table `sys_versiune`; "Despre" shows "Sablon PUG - versiunea curenta: V3.1.1".
 - "Actualizeaza pachetul" migrates older projects (3.0.x / 3.1.0) to the new names, keeps the project type and all content data, warns when an old lookup table held values missing from the official list, and offers to refresh an outdated active template copy (also offered by "Proiect nou PUG"). `_*` tables of older projects are still recognised.

@@ -19,7 +19,7 @@
       "type": "application",
       "bom-ref": "pkg:generic/pugtools",
       "name": "PUG Tools",
-      "version": "2.2.6.0",
+      "version": "2.2.6.1",
       "description": "QGIS plugin (pure Python, no compiled code) that creates and validates Romanian PUG/PUZ/PUD/PATJ/PMUD GeoPackage projects. Version taken from metadata.txt.",
       "scope": "required",
       "licenses": [
@@ -196,13 +196,13 @@
       "type": "data",
       "bom-ref": "asset-template-gpkg",
       "name": "JUD_UAT_SIRUTA_PUG_AAAALLZZ.gpkg (bundled project template)",
-      "version": "3.1.0",
-      "description": "templates/JUD_UAT_SIRUTA_PUG_AAAALLZZ/0_Seturi_date_spatiale/. Schema 3.1.0 (sys__versiune 3.1.0 / 2026-10-30). Derived from the official OMDLPA / Ministerul Dezvoltarii public template pug_3.1.0.gpkg (datelocale.mdlpa.ro, validation package 2026.10.30), with local additions: layer_styles, ~REF_* reference tables, NOT NULL constraints, and one extra _subtip_rte row ('Conducta de aductiune').",
+      "version": "3.1.1",
+      "description": "templates/JUD_UAT_SIRUTA_PUG_AAAALLZZ/0_Seturi_date_spatiale/. Schema 3.1.1 (sys_versiune 3.1.1 / 2026-11-13). Derived from the official OMDLPA / Ministerul Dezvoltarii public template pug_3.1.1.gpkg (datelocale.mdlpa.ro, validation package 2026.11.13), with local additions: layer_styles, ~REF_* reference tables, NOT NULL constraints, and lookup tables named sys_* (3.1.1).",
       "scope": "required",
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "a93c6afd621b71538eb55e196574ef2cb91e93998022023d1f541a34459af3e0"
+          "content": "be810898b430287dcf970c461d474475fcbdb15f47d5c878908eb54e96311729"
         }
       ],
       "externalReferences": [
