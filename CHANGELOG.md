@@ -8,6 +8,10 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.6.4
+- Template styles fixed: the "Clip by PlanSpatial" action of the zone layers wrote a wrong area (now m², like the default values); `ZFPropusa` legend labels of ZF16/ZF17 were swapped; `ZonaReglementareSuplimentara` feature name now uses `Cod_ZRS`. Existing projects get the fixes through "Actualizeaza pachetul".
+- README: new section on using the template in QGIS (official symbology, automatic fields, actions, REF layers), UAT-limits source, clearer notes on selective validation and the local copy of the GPKG.
+
 ## 2.2.6.3
 - README rewritten in Romanian: how-to for every tool, toolbar icons, screenshots.
 - Fix: "Pregateste pentru validare oficiala" only worked for Harghita (`HR_`) packages; it now works for every county.

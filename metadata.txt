@@ -2,7 +2,7 @@
 name=PUG Tools
 qgisMinimumVersion=3.28
 description=Unelte pt crearea si administrarea datelor GIS pt Documentatii de urbanism conforme Ordinii 904/2023
-version=2.2.6.3
+version=2.2.6.4
 author=Zoltan Kelemen with Claude Code
 email=
 
