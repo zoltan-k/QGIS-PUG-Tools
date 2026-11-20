@@ -8,6 +8,11 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.5.2
+- Fix: "Actualizeaza pachetul" no longer drops every layer of the REF group when it moves the group to the end of the tree.
+- "Consolideaza straturile" now also merges data layers whose source table is named differently (for example a "Save Features As" export); layers it cannot move are listed in the dialog, and merged layers get the main GPKG default style.
+- "Actualizeaza pachetul" re-applies the GPKG default style on package layers whose field widgets/defaults differ from it.
+
 ## 2.2.5.1
 - New in "Despre": **Verifica actualizari** (manual only) shows the latest public release and its notes;
   **Descarca si instaleaza** downloads the release zip, verifies its SHA-256 and contents, keeps a backup of the

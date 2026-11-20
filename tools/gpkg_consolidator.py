@@ -162,8 +162,16 @@ def analyze(project, template_tables):
         if layer.name() not in template_tables:
             continue
         path = layer_gpkg_path(layer)
-        if layer.providerType() != "ogr" or not path or _layer_table(layer) != layer.name():
-            result.skipped.append((layer.name(), "sursa nu e un tabel GPKG cu acelasi nume"))
+        src_table = _layer_table(layer)
+        if layer.providerType() != "ogr" or not path or not src_table:
+            result.skipped.append((layer.name(), "sursa nu este un tabel dintr-un fisier GPKG"))
+            continue
+        if src_table != layer.name() and is_reference_table(layer.name()):
+            result.skipped.append((
+                layer.name(),
+                f"strat de referinta cu sursa din alt tabel ('{src_table}') - nu se muta; "
+                "re-adauga-l din GPKG-ul tinta",
+            ))
             continue
         template_layers.setdefault(layer.name(), []).append((layer, path))
 
@@ -294,20 +302,21 @@ def _is_geom(layer):
     return layer.GetGeomType() != ogr.wkbNone
 
 
-def schema_report(src_path, tgt_path, table):
+def schema_report(src_path, tgt_path, table, src_table=None):
     """
     (abort_reasons, warnings, tgt_has_table, tgt_is_geometry) pentru inlocuirea tabelei
-    `table` din `tgt_path` cu cea din `src_path`.
+    `table` din `tgt_path` cu tabelul `src_table` (implicit `table`) din `src_path`.
     """
+    src_table = src_table or table
     ds_s = ogr.Open(src_path, 0)
     ds_t = ogr.Open(tgt_path, 0)
     if ds_s is None or ds_t is None:
         raise _AbortConsolidate(f"Nu s-a putut deschide fisierul GPKG:\n{src_path if ds_s is None else tgt_path}")
     try:
-        ls = ds_s.GetLayerByName(table)
+        ls = ds_s.GetLayerByName(src_table)
         lt = ds_t.GetLayerByName(table)
         if ls is None:
-            return [f"{table}: tabelul lipseste din {os.path.basename(src_path)}"], [], lt is not None, False
+            return [f"{table}: tabelul '{src_table}' lipseste din {os.path.basename(src_path)}"], [], lt is not None, False
         if lt is None:
             return [], [], False, _is_geom(ls)
         abort, warn = [], []
@@ -343,7 +352,7 @@ class Moves:
 
     def __init__(self):
         self.layers = []          # (layer_id, table, src_path)
-        self.replace = []         # (table, src_path)       - inlocuire continut (OGR)
+        self.replace = []         # (table, src_path, src_table) - inlocuire continut (OGR)
         self.copy_missing = []    # (table, src_path)       - tabel atribut lipsa in tinta (SQL)
         self.repoint_only = []    # table                   - doar re-indreptare
         self.warnings = []
@@ -363,7 +372,8 @@ def plan_moves(files, target, schema_target_path):
             if table in seen_tables:
                 continue
             seen_tables.add(table)
-            abort, warn, tgt_has, tgt_geom = schema_report(info.path, schema_target_path, table)
+            src_table = _layer_table(layer) or table
+            abort, warn, tgt_has, tgt_geom = schema_report(info.path, schema_target_path, table, src_table)
             moves.aborts += abort
             moves.warnings += warn
             if abort:
@@ -374,12 +384,17 @@ def plan_moves(files, target, schema_target_path):
                         f"{table}: tabelul cu geometrie lipseste din fisierul tinta - ruleaza "
                         "\"Actualizeaza pachetul\" pe fisierul tinta, apoi reia"
                     )
+                elif src_table != table:
+                    moves.aborts.append(
+                        f"{table}: tabelul lipseste din tinta, iar sursa e in alt tabel ('{src_table}') - "
+                        "ruleaza \"Actualizeaza pachetul\" pe fisierul tinta, apoi reia"
+                    )
                 else:
                     moves.copy_missing.append((table, info.path))
             elif is_reference_table(table):
                 moves.repoint_only.append(table)
             else:
-                moves.replace.append((table, info.path))
+                moves.replace.append((table, info.path, src_table))
     return moves
 
 
@@ -393,13 +408,13 @@ def _count(ds, table):
         ds.ReleaseResultSet(res)
 
 
-def _replace_table_ogr(ds_t, src_path, table):
-    """Sterge continutul `table` din ds_t si insereaza randurile din src_path (fid pastrat)."""
+def _replace_table_ogr(ds_t, src_path, table, src_table=None):
+    """Sterge continutul `table` din ds_t si insereaza randurile tabelului `src_table` din src_path (fid pastrat)."""
     ds_s = ogr.Open(src_path, 0)
     if ds_s is None:
         raise RuntimeError(f"Nu s-a putut deschide {src_path}")
     try:
-        ls = ds_s.GetLayerByName(table)
+        ls = ds_s.GetLayerByName(src_table or table)
         lt = ds_t.GetLayerByName(table)
         defn = lt.GetLayerDefn()
         tgt_type = lt.GetGeomType()
@@ -452,8 +467,8 @@ def _apply_tables(target_path, moves):
         )
     started = ds_t.StartTransaction() == 0
     try:
-        for table, src_path in moves.replace:
-            _replace_table_ogr(ds_t, src_path, table)
+        for table, src_path, src_table in moves.replace:
+            _replace_table_ogr(ds_t, src_path, table, src_table)
         if started and ds_t.CommitTransaction() != 0:
             raise RuntimeError("Tranzactia nu a putut fi finalizata")
         started = False
@@ -467,17 +482,31 @@ def _apply_tables(target_path, moves):
 
 # -- scriere: proiect ----------------------------------------------------------------
 
-def _repoint_layer(project, layer_id, target_path):
+def _repoint_layer(project, layer_id, target_path, reload_style=False):
+    """
+    Re-indreapta stratul spre tabelul cu numele lui din `target_path` (sursa veche putea fi un
+    tabel cu alt nume, ex. dintr-un export "Save Features As"). Cu `reload_style`, stilul implicit
+    salvat in "layer_styles" din tinta (widget-uri, valori implicite, simbolizare) inlocuieste stilul
+    stratului din proiect - un strat reincarcat dintr-un export nu are stilul sablonului.
+    """
     layer = project.mapLayer(layer_id)
     if layer is None:
         raise RuntimeError(f"Stratul {layer_id} nu mai exista in proiect")
     registry = QgsProviderRegistry.instance()
     parts = registry.decodeUri("ogr", layer.source())
     parts["path"] = target_path
+    parts["layerName"] = layer.name()
+    parts.pop("layerId", None)
     new_uri = registry.encodeUri("ogr", parts)
     layer.setDataSource(new_uri, layer.name(), "ogr", QgsDataProvider.ProviderOptions())
     if not layer.isValid():
         raise RuntimeError(f"Stratul '{layer.name()}' nu s-a putut incarca din noua sursa:\n{new_uri}")
+    if reload_style:
+        message, ok = layer.loadNamedStyle(layer.source(), False)  # False = din baza de date a sursei
+        if not ok:  # tinta fara stil implicit pentru acest strat: ramane stilul din proiect
+            QgsMessageLog.logMessage(
+                f"Stil implicit negasit in tinta pentru '{layer.name()}': {message}", LOG_TAG, level=Qgis.Info
+            )
 
 
 def _fix_value_relation_sources(project, project_dir, target_path, tables, moved_ids):
@@ -577,11 +606,13 @@ def _run_impl(iface):
     if not files:
         raise _AbortConsolidate("Proiectul nu contine niciun strat din sablonul PUG.")
     if len(files) == 1:
-        QMessageBox.information(
-            iface.mainWindow(), TITLE,
+        text = (
             "Toate straturile sablonului din proiect sunt deja intr-un singur fisier:\n\n"
-            + _display_path(files[0].path, project_dir),
+            + _display_path(files[0].path, project_dir)
         )
+        if analysis.skipped:
+            text += "\n\nStraturi ignorate:\n" + "\n".join(f"  - {n}: {r}" for n, r in analysis.skipped)
+        QMessageBox.information(iface.mainWindow(), TITLE, text)
         return True
 
     # ---- alegerea tintei --------------------------------------------------------------
@@ -638,12 +669,18 @@ def _run_impl(iface):
         "",
         f"Tabele inlocuite in tinta: {len(moves.replace)}",
     ]
-    lines += [f"  - {t}   <- {os.path.basename(p)}" for t, p in moves.replace]
+    lines += [
+        f"  - {t}   <- {os.path.basename(p)}" + (f" (tabel '{st}')" if st != t else "")
+        for t, p, st in moves.replace
+    ]
     if moves.repoint_only:
         lines += ["", "Tabele de referinta doar re-indreptate spre copia din tinta: "
                   + ", ".join(moves.repoint_only)]
     if moves.copy_missing:
         lines += ["", "Tabele lipsa in tinta, copiate: " + ", ".join(t for t, _p in moves.copy_missing)]
+    if analysis.skipped:
+        lines += ["", "STRATURI NEMUTATE (raman unde sunt, nu fac parte din consolidare):"]
+        lines += [f"  - {name}: {reason}" for name, reason in analysis.skipped]
     if moves.warnings:
         lines += ["", "DIFERENTE DE SCHEMA:"] + [f"  - {w}" for w in moves.warnings]
     if warnings_mismatch:
@@ -651,7 +688,8 @@ def _run_impl(iface):
     lines += [
         "",
         "Se vor salva modificarile din straturi si proiectul (la esec, operatia se opreste), "
-        "se va crea o copie de rezerva (.zip) langa proiect, apoi se aplica schimbarile.",
+        "se va crea o copie de rezerva (.zip) langa proiect, apoi se aplica schimbarile. "
+        "Straturile de date mutate primesc stilul implicit salvat in fisierul tinta.",
         "",
         "Continui?",
     ]
@@ -707,8 +745,8 @@ def _run_impl(iface):
 
         # tabelele sunt scrise; acum proiectul re-indreptat spre tinta
         try:
-            for lid, _t, _p in moves.layers:
-                _repoint_layer(project, lid, target.path)
+            for lid, table, _p in moves.layers:
+                _repoint_layer(project, lid, target.path, reload_style=not is_reference_table(table))
             _fix_value_relation_sources(project, project_dir, target.path, moved_tables, moved_ids)
             if not project.write(project_file):
                 raise RuntimeError(f"Proiectul nu a putut fi salvat: {project.error()}")

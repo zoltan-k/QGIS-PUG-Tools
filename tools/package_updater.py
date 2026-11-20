@@ -1306,6 +1306,53 @@ def _find_group_by_name(node, name):
     return None
 
 
+def _group_layer_snapshot(group):
+    """[(id, nume, sursa, provider)] pentru straturile (inclusiv din subgrupuri) unui grup."""
+    snapshot = []
+    for tree_layer in group.findLayers():
+        layer = tree_layer.layer()
+        if layer is None:
+            continue
+        try:
+            snapshot.append((layer.id(), layer.name(), layer.source(), layer.providerType()))
+        except AttributeError:
+            continue
+    return snapshot
+
+
+def _move_group_to_end(project, parent, group):
+    """
+    Muta `group` la finalul lui `parent` FARA sa piarda straturile din el (vezi
+    comentariul din _add_layers_to_ref_group). Returneaza grupul de folosit in
+    continuare (clona; originalul este eliminat din arbore).
+    """
+    snapshot = _group_layer_snapshot(group)
+    clone = group.clone()
+    parent.addChildNode(clone)        # clona primeste straturile INAINTE de a pleca originalul
+    parent.removeChildNode(group)     # originalul: straturile mai au nod (in clona) -> raman in proiect
+
+    # plasa de siguranta: orice strat disparut din proiect e reincarcat din sursa
+    # (straturile vechi au fost distruse, deci se creeaza unele noi - stilul vine
+    # din tabela layer_styles a GPKG-ului, la fel ca la crearea proiectului)
+    lost = [item for item in snapshot if project.mapLayer(item[0]) is None]
+    if lost:
+        for tree_layer in list(clone.findLayers()):  # noduri ramase fara strat
+            if tree_layer.layer() is None and tree_layer.parent() is not None:
+                tree_layer.parent().removeChildNode(tree_layer)
+    for _lid, name, source, provider in lost:
+        if provider != "ogr":
+            continue  # straturile virtuale se reconstruiesc in _sync_virtual_ref_layers
+        layer = QgsVectorLayer(source, name, "ogr")
+        if not layer.isValid():
+            continue
+        project.addMapLayer(layer, False)
+        clone.addLayer(layer)
+        QgsMessageLog.logMessage(
+            f"Strat REF pierdut la mutarea grupului, reincarcat: {name}", "PUG Tools", level=Qgis.Warning
+        )
+    return clone
+
+
 def _add_layers_to_ref_group(project, gpkg_path, table_names):
     root = project.layerTreeRoot()
     ref_group = _find_group_by_name(root, REF_GROUP_NAME)
@@ -1337,8 +1384,17 @@ def _add_layers_to_ref_group(project, gpkg_path, table_names):
             # nodul), takeChild() il doar detaseaza - obiectul "ref_group"
             # ramane valabil de refolosit (takeChild() returneaza bool, nu
             # nodul detasat).
-            if parent.takeChild(ref_group):
-                parent.addChildNode(ref_group)
+            #
+            # ATENTIE (bug real, 2026-11): takeChild() detaseaza nodul din
+            # arbore, iar QgsLayerTreeRegistryBridge sterge din PROIECT
+            # straturile ale caror noduri nu mai apar nicaieri in arbore -
+            # cu REF detasat, toate straturile lui disparau din proiect (grupul
+            # reaparea gol). Mutarea trebuie facuta ca "Move to Bottom" din
+            # QGIS: clona e inserata MAI INTAI (straturile raman in arbore),
+            # abia apoi originalul e eliminat. Plasa de siguranta: straturile
+            # grupului sunt retinute si, daca totusi lipsesc dupa mutare,
+            # sunt reincarcate din sursa lor.
+            ref_group = _move_group_to_end(project, parent, ref_group)
     ref_group.setExpanded(False)
 
     for table_name in sorted(table_names):
@@ -1439,6 +1495,55 @@ def _ref_group_misplaced(project):
         return False
     parent = ref_group.parent()
     return bool(parent is not None and parent.children()[-1] is not ref_group)
+
+
+def _field_style_signature(layer):
+    """Widget-uri de camp + valori implicite (partea "de sablon" a unui stil), pe nume de camp."""
+    signature = []
+    fields = layer.fields()
+    for i in range(len(fields)):
+        signature.append((
+            fields.at(i).name(),
+            layer.editorWidgetSetup(i).type(),
+            layer.defaultValueDefinition(i).expression(),
+        ))
+    return signature
+
+
+def _layers_with_style_drift(project, gpkg_path):
+    """
+    Numele straturilor cu continut din `gpkg_path` al caror stil din PROIECT nu mai e cel
+    salvat ca implicit in tabela "layer_styles" a GPKG-ului (ex. strat reincarcat dintr-un
+    export "Save Features As", fara widget-uri/valori implicite). Compara widget-urile de
+    camp si valorile implicite cu cele ale unui strat nou, care isi incarca stilul implicit
+    din baza de date. Straturile fara stil implicit salvat in GPKG sunt ignorate.
+    """
+    gp = _norm_path(gpkg_path)
+    try:
+        con = sqlite3.connect(
+            "file:" + gpkg_path.replace("\\", "/").replace("?", "%3f").replace("#", "%23") + "?mode=ro",
+            uri=True,
+        )
+        try:
+            styled = {
+                r[0] for r in con.execute("SELECT f_table_name FROM layer_styles WHERE useAsDefault")
+            }
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return []
+
+    drifted = []
+    for layer in project.mapLayers().values():
+        path, table = _layer_gpkg_table(layer)
+        if path != gp or table not in styled or table.startswith(REF_PREFIXES):
+            continue
+        if not layer.isValid() or layer.name() != table or not hasattr(layer, "defaultValueDefinition"):
+            continue
+        fresh = QgsVectorLayer(layer.source(), table, "ogr")
+        if fresh.isValid() and _field_style_signature(layer) != _field_style_signature(fresh):
+            drifted.append(table)
+    return sorted(drifted)
 
 
 def _remove_obsolete_virtual_ref_layers(project):
@@ -1945,6 +2050,7 @@ def _run_impl(iface):
     vref_to_rebuild = _vref_layers_needing_rebuild(project)
     vref_obsolete = [lyr.name() for lyr in _obsolete_virtual_ref_layers(project)]
     ref_group_misplaced = _ref_group_misplaced(project)
+    style_drift = _layers_with_style_drift(project, gpkg_path)
     gp_norm = _norm_path(gpkg_path)
     dangling_probe = sorted(
         lyr.name() for lyr in project.mapLayers().values()
@@ -2011,6 +2117,13 @@ def _run_impl(iface):
         )
     if ref_group_misplaced:
         change_lines.append("- Grupul de straturi \"REF\" va fi mutat la finalul arborelui.\n")
+    style_drift_only = [n for n in style_drift if n not in styles_to_update]
+    if style_drift_only:
+        change_lines.append(
+            "- Stilul din proiect (widget-uri de camp, valori implicite, simbolizare) difera de "
+            "stilul implicit salvat in GPKG pentru: "
+            f"{', '.join(style_drift_only)} - stilul din GPKG va fi reaplicat pe aceste straturi.\n"
+        )
 
     if not change_lines:
         QMessageBox.information(
@@ -2189,8 +2302,9 @@ def _run_impl(iface):
     # suprascrise in GPKG (updated_styles) trebuie reincarcate in proiect
     # pentru ca modificarea sa aiba efect - vezi _reload_layer_styles_from_db.
     reload_failures = []
-    if updated_styles:
-        reload_failures = _reload_layer_styles_from_db(project, updated_styles)
+    reapplied_styles = [n for n in style_drift if n not in updated_styles]
+    if updated_styles or reapplied_styles:
+        reload_failures = _reload_layer_styles_from_db(project, list(updated_styles) + reapplied_styles)
 
     project.write()
 
@@ -2202,6 +2316,11 @@ def _run_impl(iface):
         "Stiluri actualizate: "
         + (f"{len(updated_styles)} ({', '.join(updated_styles)})" if updated_styles else "0"),
     ]
+    if reapplied_styles:
+        summary_lines.append(
+            "Stil din GPKG reaplicat pe straturi (stilul din proiect diferea): "
+            f"{len(reapplied_styles)} ({', '.join(reapplied_styles)})"
+        )
     if already_in_gpkg:
         summary_lines.append(
             "Dintre acestea, prezente deja in GPKG dar neincarcate ca straturi "
