@@ -8,6 +8,11 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.6.3
+- README rewritten in Romanian: how-to for every tool, toolbar icons, screenshots.
+- Fix: "Pregateste pentru validare oficiala" only worked for Harghita (`HR_`) packages; it now works for every county.
+- "Despre": file paths shown on their own line under each row (full path in a tooltip); description text typos fixed.
+
 ## 2.2.6.1
 - New plugin description and About texts (QGIS Plugin Manager), shorter notes in "Despre".
 

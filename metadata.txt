@@ -1,12 +1,12 @@
 [general]
 name=PUG Tools
 qgisMinimumVersion=3.28
-description=Unelte pt crearea si administratrea datelor GIS pt Documentatii de urbanism conforme Ordinii 904/2023
-version=2.2.6.1
+description=Unelte pt crearea si administrarea datelor GIS pt Documentatii de urbanism conforme Ordinii 904/2023
+version=2.2.6.3
 author=Zoltan Kelemen with Claude Code
 email=
 
-about=(1)validarea datelor dintr-un GeoPackage; (2) rularea selectiva a regulilor de validare; (3) crearea unui proiect PUG/PUZ/PUD/PATJ/PMUD nou pentru orice UAT ales, cu limita administrativa preluata dinamic; (4) pregatirea proiectului curent pentru validare oficiala; (5) actualizarea unui proiect deja creat la structura si stilurile sablonului curent (straturi de referinta lipsa, stiluri); (6) editarea sablonului referinta; (7) copie de siguranta portabila; (8) consolidarea straturilor sablonului din mai multe fisiere GPKG intr-unul singur
+about=(1) validarea datelor dintr-un GeoPackage; (2) rularea selectiva a regulilor de validare; (3) crearea unui proiect PUG/PUZ/PUD/PATJ/PMUD nou pentru orice UAT ales, cu limita administrativa preluata dinamic; (4) pregatirea proiectului curent pentru validare oficiala; (5) actualizarea unui proiect deja creat la structura si stilurile sablonului curent (straturi de referinta lipsa, stiluri); (6) editarea sablonului referinta; (7) copie de siguranta portabila; (8) consolidarea straturilor sablonului din mai multe fisiere GPKG intr-unul singur
 tracker=https://github.com/zoltan-k/QGIS-PUG-Tools/issues
 repository=https://github.com/zoltan-k/QGIS-PUG-Tools
 category=Vector

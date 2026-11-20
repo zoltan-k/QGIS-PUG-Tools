@@ -106,7 +106,7 @@ def _run_impl(iface):
     path = ps_layers[0].source()
 
     pug_folder = _extract(
-        r"(.*/HR_[^/]+_" + DATE_PLACEHOLDER + r")/.*\|",
+        r"(.*/[A-Za-z]{1,2}_[^/]+_" + DATE_PLACEHOLDER + r")/.*\|",
         path,
         "folderul proiectului PUG",
     )
@@ -116,7 +116,7 @@ def _run_impl(iface):
         "calea relativa a fisierului GPKG",
     )
     root_folder = _extract(
-        r"(.*)/HR_[^/]+_" + DATE_PLACEHOLDER + r"/.*\|",
+        r"(.*)/[A-Za-z]{1,2}_[^/]+_" + DATE_PLACEHOLDER + r"/.*\|",
         path,
         "folderul radacina",
     )
@@ -144,7 +144,7 @@ def _run_impl(iface):
         new_pug_folder = pug_folder.replace(DATE_PLACEHOLDER, thisday)
         newfile = gpkg_rel_path.replace(DATE_PLACEHOLDER, thisday)
         base_folder = _extract(
-            r".*/(HR_[^/]+_" + thisday + r")", new_pug_folder, "folderul de baza"
+            r".*/([A-Za-z]{1,2}_[^/]+_" + thisday + r")", new_pug_folder, "folderul de baza"
         )
 
         def _skip_orphans(directory, names):

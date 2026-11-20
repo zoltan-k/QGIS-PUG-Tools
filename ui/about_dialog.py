@@ -357,10 +357,7 @@ class AboutDialog(QDialog):
         row = QHBoxLayout()
         row.addWidget(_bold(QLabel(label_text + ":")))
 
-        path_label = QLabel(path_text or "-")
-        path_label.setWordWrap(True)
-        path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        row.addWidget(path_label, 1)
+        row.addStretch(1)  # calea (lunga) e afisata pe propriul rand, sub eticheta si butoane
 
         status_label = QLabel(status_text)
         status_label.setStyleSheet(
@@ -372,6 +369,14 @@ class AboutDialog(QDialog):
             row.addWidget(button)
 
         container.addLayout(row)
+
+        if path_text:
+            path_label = QLabel(path_text)
+            path_label.setWordWrap(True)
+            path_label.setToolTip(path_text)
+            path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            path_label.setStyleSheet("font-size: 8pt;")
+            container.addWidget(path_label)
 
         if note:
             note_label = QLabel(note)
