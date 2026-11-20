@@ -8,6 +8,13 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.5.1
+- New in "Despre": **Verifica actualizari** (manual only) shows the latest public release and its notes;
+  **Descarca si instaleaza** downloads the release zip, verifies its SHA-256 and contents, keeps a backup of the
+  current version in the temp folder and installs it through QGIS's own "Install from ZIP". Disabled for
+  development copies (symlinks / git checkouts).
+- The long explanations of the validation settings moved from the dialog to the README.
+
 ## 2.2.5.0
 
 - **Much faster validation when the project is on a network share or mapped drive.** A GeoPackage is a SQLite database, and over a network every small read and file lock is a round trip, so validating a real project from a mapped drive took almost 6 minutes (about 2.5 seconds with this version). Validation now copies the `.gpkg` once to a local temporary folder, runs all rules against the copy and deletes it afterwards; the original file is only read, never written. If the copy fails, the rules read the original as before.

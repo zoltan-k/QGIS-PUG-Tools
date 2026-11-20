@@ -45,7 +45,34 @@ Ten tools, all available from the plugin toolbar/menu inside QGIS:
    template's structure, styles, and field properties, with protection
    against leftover features in layers that must ship empty.
 8. **Despre** — plugin info and local-data status (template, UAT boundary
-   cache), with delete/refresh actions.
+   cache), with delete/refresh actions, validation settings, and
+   **Verifica actualizari** (manual only; see below).
+
+### Despre: validation settings
+
+- **Geometry warning tolerance (R26/R27).** Geometries strictly inside the
+  boundary (buffer 0 m, fixed — the value published by the official validator)
+  pass silently. Beyond that but within the tolerance: WARNING on rules 26 and
+  27, not a failure. Beyond the tolerance: failure (BLOCKER). Default 10 m, per
+  the OMDLPA 904 technical specifications.
+- **Local copy of the GPKG during validation.** A GPKG is a SQLite database: on
+  a network share every small read and file lock is a round-trip, and the rules
+  reopen the file dozens of times, so validation can take many times longer than
+  locally. With a local copy the GPKG is copied once to a temporary folder
+  (deleted afterwards) and the rules read from the copy; the original is never
+  modified. *Auto*: only when the project is on a network drive (UNC path or
+  mapped drive, e.g. `T:\`). *Always*: also for local drives or unrecognised
+  network drives (e.g. some cloud drivers). *Never*: read the original file
+  directly. Applies from the next validation.
+
+### Despre: updates
+
+**Verifica actualizari** looks up the latest public release on GitHub
+(`zoltan-k/QGIS-PUG-Tools`) and shows its notes. **Descarca si instaleaza**
+downloads the release zip, verifies its SHA-256 and contents, saves the current
+version to a temporary folder, and installs through QGIS's own "Install from
+ZIP" mechanism. Nothing runs automatically; there is no startup check. Install
+is disabled for development copies (symlinked or git checkouts).
 
 ## Requirements
 

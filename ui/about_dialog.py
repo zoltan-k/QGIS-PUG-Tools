@@ -10,10 +10,12 @@ ambele.
 import configparser
 import datetime
 import os
+import shutil
+import tempfile
 import traceback
 
 from qgis.core import Qgis, QgsMessageLog
-from qgis.PyQt.QtCore import QUrl, Qt
+from qgis.PyQt.QtCore import QTimer, QUrl, Qt
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
     QApplication,
@@ -24,6 +26,7 @@ from qgis.PyQt.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -31,6 +34,7 @@ from qgis.PyQt.QtWidgets import (
 
 from ..tools import settings as pug_settings
 from ..tools import template_editor, template_paths, uat_boundary
+from . import updater
 
 LOG_TAG = "PUG Tools"
 README_URL = "https://github.com/zoltan-k/QGIS-PUG-Tools#readme"
@@ -118,6 +122,163 @@ class AboutDialog(QDialog):
         readme_label = QLabel(f'<a href="{README_URL}">Documentatie completa (README, GitHub)</a>')
         readme_label.setOpenExternalLinks(True)
         self._outer_layout.addWidget(readme_label)
+
+        self._current_version = meta["version"]
+        self._build_update_section()
+
+    # -- actualizari (doar manual, la cerere) ---------------------------------
+
+    def _build_update_section(self):
+        row = QHBoxLayout()
+        self._check_btn = QPushButton("Verifica actualizari")
+        self._check_btn.setToolTip("Cauta ultima versiune publica pe GitHub")
+        self._check_btn.clicked.connect(self._on_check_updates)
+        row.addWidget(self._check_btn)
+
+        self._update_status = QLabel("")
+        self._update_status.setWordWrap(True)
+        row.addWidget(self._update_status, 1)
+
+        self._release_link_btn = QPushButton("Pagina versiunii")
+        self._release_link_btn.hide()
+        row.addWidget(self._release_link_btn)
+
+        self._install_btn = QPushButton("Descarca si instaleaza")
+        self._install_btn.hide()
+        self._install_btn.clicked.connect(self._on_install_update)
+        row.addWidget(self._install_btn)
+        self._outer_layout.addLayout(row)
+
+        self._release_notes = QPlainTextEdit()
+        self._release_notes.setReadOnly(True)
+        self._release_notes.setMaximumHeight(110)
+        self._release_notes.hide()
+        self._outer_layout.addWidget(self._release_notes)
+
+        self._latest_release = None
+
+    def _set_update_status(self, text, ok=None):
+        style = {True: "color: #2e7d32; font-weight: bold;", False: "color: #c62828;"}.get(ok, "")
+        self._update_status.setStyleSheet(style)
+        self._update_status.setText(text)
+
+    def _on_check_updates(self):
+        self._install_btn.hide()
+        self._release_link_btn.hide()
+        self._release_notes.hide()
+        self._latest_release = None
+        self._set_update_status("Se verifica...")
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            release = updater.fetch_latest_release()
+            newer = updater.is_newer(release["version"], self._current_version)
+        except updater.UpdateError as exc:
+            QApplication.restoreOverrideCursor()
+            self._set_update_status(f"Verificarea a esuat: {exc}", ok=False)
+            return
+        except Exception as exc:
+            QApplication.restoreOverrideCursor()
+            QgsMessageLog.logMessage(traceback.format_exc(), LOG_TAG, level=Qgis.Critical)
+            self._set_update_status(f"Verificarea a esuat: {exc}", ok=False)
+            return
+        QApplication.restoreOverrideCursor()
+
+        if not newer:
+            self._set_update_status(
+                f"Aveti ultima versiune publica (v{release['version']}).", ok=True
+            )
+            return
+
+        self._latest_release = release
+        self._set_update_status(f"Versiune noua disponibila: v{release['version']}", ok=True)
+        try:
+            self._release_link_btn.clicked.disconnect()
+        except TypeError:
+            pass
+        self._release_link_btn.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl(release["page_url"]))
+        )
+        self._release_link_btn.show()
+        if release["notes"]:
+            self._release_notes.setPlainText(release["notes"])
+            self._release_notes.show()
+        if release["asset_url"]:
+            self._install_btn.show()
+
+    def _on_install_update(self):
+        release = self._latest_release
+        if not release:
+            return
+        reason = updater.install_block_reason(self.plugin_dir)
+        if reason:
+            QMessageBox.information(
+                self,
+                "Instalare automata indisponibila",
+                f"Instalarea automata este dezactivata: {reason}.\n\n"
+                "Descarcati versiunea de pe pagina ei.",
+            )
+            return
+        answer = QMessageBox.question(
+            self,
+            "Instaleaza actualizarea",
+            f"Se va descarca si instala PUG Tools v{release['version']} "
+            f"(actual: v{self._current_version}).\n\n"
+            "Versiunea curenta este salvata intr-un folder temporar. Salvati "
+            "inainte proiectul deschis daca lucrati cu o validare in curs.\n\n"
+            "Continui?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        iface = self.iface
+        plugin_dir = self.plugin_dir
+        current_version = self._current_version
+        parent = self.parent()
+        tmp_dir = tempfile.mkdtemp(prefix="pugtools_update_")
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            zip_path = updater.download_release(release, tmp_dir)
+            backup = updater.backup_current(plugin_dir, current_version)
+        except Exception as exc:
+            QApplication.restoreOverrideCursor()
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            self._set_update_status(f"Descarcarea a esuat: {exc}", ok=False)
+            return
+        QApplication.restoreOverrideCursor()
+
+        # installerul descarca plugin-ul (inclusiv acest dialog) si il reincarca:
+        # inchidem dialogul si rulam instalarea dupa revenirea in bucla de evenimente
+        self.accept()
+
+        def run_install():
+            try:
+                updater.install_zip(zip_path)
+            except Exception as exc:
+                QgsMessageLog.logMessage(traceback.format_exc(), LOG_TAG, level=Qgis.Critical)
+                QMessageBox.critical(parent, "Actualizare PUG Tools", f"Instalarea a esuat:\n{exc}")
+                return
+            finally:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+            installed = _read_metadata(plugin_dir)["version"]
+            if installed == release["version"]:
+                iface.messageBar().pushMessage(
+                    "PUG Tools",
+                    f"Actualizat la v{installed}. Daca observati comportamente neasteptate, "
+                    f"reporniti QGIS. Versiunea anterioara: {backup}",
+                    level=Qgis.Warning,
+                    duration=0,
+                )
+            else:
+                QMessageBox.critical(
+                    parent,
+                    "Actualizare PUG Tools",
+                    f"Instalarea nu s-a finalizat (versiune gasita: v{installed}). "
+                    f"Versiunea anterioara este salvata in:\n{backup}",
+                )
+
+        QTimer.singleShot(0, run_install)
 
     def _build_close_button(self):
         button_row = QHBoxLayout()
@@ -462,11 +623,7 @@ class AboutDialog(QDialog):
         section.addLayout(row)
 
         note = QLabel(
-            f"Geometrii aflate strict in interiorul limitei ({pug_settings.BOUNDARY_BUFFER_STRICT_M:g} m, "
-            "fixa, valoarea publicata de validatorul oficial) trec fara observatie. Peste "
-            "aceasta limita dar sub toleranta de mai sus: avertisment (WARNING) la regulile "
-            "26 si 27, nu esec. Peste toleranta: esec (BLOCKER). Implicit 10 m, conform "
-            "precizarilor tehnice OMDLPA 904."
+            "Sub toleranta: avertisment (WARNING); peste: esec (BLOCKER). Detalii in README."
         )
         note.setWordWrap(True)
         note.setStyleSheet("color: gray; font-style: italic;")
@@ -502,15 +659,8 @@ class AboutDialog(QDialog):
         section.addLayout(row)
 
         note = QLabel(
-            "Un GPKG este o baza SQLite: pe o partajare de retea fiecare citire mica si "
-            "fiecare blocare de fisier e un round-trip, iar regulile redeschid fisierul de "
-            "zeci de ori - validarea poate dura de zeci de ori mai mult decat local. Cu "
-            "copie locala, fisierul GPKG este copiat o singura data intr-un folder temporar "
-            "(sters la final), iar regulile citesc din copie; originalul nu este modificat. "
-            "Automat: doar daca proiectul sta pe o unitate de retea (cale UNC sau unitate "
-            "mapata, ex. T:\\). Intotdeauna: si pentru unitati locale sau pentru unitati de "
-            "retea nerecunoscute (ex. unele drivere cloud). Niciodata: se citeste direct din "
-            "fisierul original. Se aplica la urmatoarea validare."
+            "Accelereaza validarea pe unitati de retea. Se aplica la urmatoarea validare. "
+            "Detalii in README."
         )
         note.setWordWrap(True)
         note.setStyleSheet("color: gray; font-style: italic;")
