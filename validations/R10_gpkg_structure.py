@@ -51,7 +51,13 @@ try:
 except ImportError:  # pragma: no cover - fallback pentru rulare in afara plugin-ului
     from tools import template_paths
 
-IGNORED_PREFIXES = ("_", "~")
+# Coloane optionale (kit 3.1.1, pachet 2026.11.13): pot lipsi din strat fara a fi
+# raportate la "numar campuri"/"nume campuri"; regula 12 verifica echivalentele obligatorii.
+OPTIONAL_COLUMNS = {
+    "regulamentlocalurbanismdetaliat": {"pot_detaliu", "cut_detaliu", "clad_hmax_detaliu"},
+}
+
+IGNORED_PREFIXES = ("sys_", "_", "~")  # "sys_" = lookup-uri din sablonul 3.1.1 ("_" = sabloane mai vechi)
 
 
 class GpkgStructureMatchesTemplateRule(BaseValidationRule):
@@ -78,8 +84,8 @@ class GpkgStructureMatchesTemplateRule(BaseValidationRule):
         for i in range(ds.GetLayerCount()):
             lyr = ds.GetLayerByIndex(i)
             name = lyr.GetName()
-            if name.startswith(IGNORED_PREFIXES):
-                continue
+            if name.startswith(IGNORED_PREFIXES) or name == "layer_styles":
+                continue  # "layer_styles" = stiluri QGIS ale plugin-ului, nu fac parte din sabloanele oficiale
             srs = lyr.GetSpatialRef()
             srs_desc = None
             if srs is not None:
@@ -201,8 +207,12 @@ class GpkgStructureMatchesTemplateRule(BaseValidationRule):
                     )
                 )
 
-            # 5. numarul de campuri (documentatie >= sablon)
-            if len(doc_info["fields"]) < len(tmpl_info["fields"]):
+            # coloane optionale lipsa din documentatie (nu se raporteaza la 5 si 6)
+            optional = OPTIONAL_COLUMNS.get(key, set())
+            optional_absent = {f for f in optional if f in tmpl_info["fields"] and f not in doc_info["fields"]}
+
+            # 5. numarul de campuri (documentatie >= sablon, fara coloanele optionale lipsa)
+            if len(doc_info["fields"]) < len(tmpl_info["fields"]) - len(optional_absent):
                 failures.append(
                     ValidationFailure(
                         rule_name=self.name,
@@ -210,7 +220,7 @@ class GpkgStructureMatchesTemplateRule(BaseValidationRule):
                         fid=0,
                         reason=(
                             f"Numar de campuri ({len(doc_info['fields'])}) mai mic decat "
-                            f"sablonul ({len(tmpl_info['fields'])})."
+                            f"sablonul ({len(tmpl_info['fields']) - len(optional_absent)})."
                         ),
                     )
                 )
@@ -219,7 +229,7 @@ class GpkgStructureMatchesTemplateRule(BaseValidationRule):
             missing_fields = sorted(
                 fname
                 for fkey, (fname, _) in tmpl_info["fields"].items()
-                if fkey not in doc_info["fields"]
+                if fkey not in doc_info["fields"] and fkey not in optional_absent
             )
             if missing_fields:
                 failures.append(

@@ -4,9 +4,9 @@ Regula de validare: Se verifica daca SIRUTA din stratul PlanSpatial este
 SIRUTA superioara (la nivel de UAT) pentru valorile SIRUTA din straturile
 LimitaIntravilanExistenta si LimitaIntravilanPropusa (la nivel de localitate).
 
-Ierarhia SIRUTA este dedusa local din tabelul de referinta "_siruta" inclus
+Ierarhia SIRUTA este dedusa local din tabelul de referinta "sys_siruta" inclus
 in sablonul GPKG, in loc de un apel catre un serviciu extern. Incepand cu
-sablonul 3.0.3, "_siruta" nu mai e o tabela ierarhica pe 3 niveluri (judet/
+sablonul 3.0.3, "sys_siruta" nu mai e o tabela ierarhica pe 3 niveluri (judet/
 UAT/localitate, cu auto-referinta "siruta"/"sirsup") - e o lista plata de
 localitati, fiecare purtand direct codul UAT-ului parinte (coloanele
 "siruta_loc" = codul localitatii, "siruta_uat" = codul UAT-ului careia ii
@@ -39,7 +39,7 @@ class SirutaHierarchyRule(BaseValidationRule):
             return None
 
     def _children_of(self, project, parent_codes):
-        ref_layer = get_layer_or_open(project, "_siruta")
+        ref_layer = get_layer_or_open(project, "sys_siruta")
         children = set()
         request = request_for_fields(ref_layer, ["siruta_loc", "siruta_uat"])
         for feat in ref_layer.getFeatures(request):

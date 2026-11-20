@@ -3,7 +3,7 @@
 Regula de validare: Se verifica coloanele HILUCS_N1, HILUCS_N2, HILUCS_N3
 din straturile fisierului GPKG sa fie corelate conform OMDLPA 904.
 
-Codurile si ierarhia HILUCS sunt citite din tabelul de referinta "_hilucs"
+Codurile si ierarhia HILUCS sunt citite din tabelul de referinta "sys_hilucs"
 (coloane: cod, nivel, cod_parinte) inclus in sablonul GPKG.
 
 Cache-ul ierarhiei HILUCS este LOCAL fiecarei rulari a run() (nu pe
@@ -31,7 +31,7 @@ class HilucsHierarchyRule(BaseValidationRule):
     def _load_hilucs(project, hilucs_cache):
         if hilucs_cache["parents"] is not None:
             return hilucs_cache["parents"]
-        ref_layer = get_layer_or_open(project, "_hilucs")
+        ref_layer = get_layer_or_open(project, "sys_hilucs")
         parents = {}
         request = request_for_fields(ref_layer, ["cod", "cod_parinte"])
         for feat in ref_layer.getFeatures(request):

@@ -15,7 +15,7 @@ Fluxul:
        Preselectie: numele "AAAALLZZ" (cel creat de "Proiect nou PUG"), apoi
        fisierul cu cele mai multe straturi sablon. Daca niciun fisier nu e
        eligibil, un GPKG nou este construit din sablon, cu nume corect, pe baza
-       datelor din PlanSpatial (+ ~REF_UAT, sys__versiune); daca nu exista
+       datelor din PlanSpatial (+ ~REF_UAT, sys_versiune); daca nu exista
        destule informatii, unealta se opreste si recomanda un proiect nou.
     3. Se salveaza tot (straturi editabile + proiect; esec = oprire) si se
        creeaza o copie de rezerva "as is" (ca la "Actualizeaza pachetul").
@@ -23,7 +23,7 @@ Fluxul:
        nume din tinta (continutul tinta se sterge, randurile sursei se insereaza
        cu fid-urile pastrate, printr-o singura tranzactie GDAL: triggerele
        rtree/feature_count raman corecte; la eroare nu se modifica nimic).
-         - tabele "_*" si "sys__*" (referinta, ale sablonului): stratul doar este
+         - tabele "_*" si "sys_*" (referinta, ale sablonului): stratul doar este
            re-indreptat spre copia din tinta; se copiaza doar daca tinta nu o are;
          - tabelele "~*" (inclusiv ~REF_UAT) si straturile de date: inlocuite.
        Straturile care nu sunt in sablon, straturile virtuale etc. nu sunt atinse.
@@ -93,8 +93,8 @@ def parse_pug_name(path):
 
 
 def is_reference_table(table):
-    """Tabelele "_*" si "sys__*" apartin sablonului; "~*" (si ~REF_UAT) contin date ale proiectului."""
-    return table.startswith(("_", "sys__"))
+    """Tabelele "_*" si "sys_*" apartin sablonului; "~*" (si ~REF_UAT) contin date ale proiectului."""
+    return table.startswith(("_", "sys_"))
 
 
 def _ctext(text):
@@ -270,7 +270,7 @@ def new_package_info(project):
         jud = None
 
     tip = None
-    ver = project.mapLayersByName("sys__versiune")
+    ver = project.mapLayersByName("sys_versiune") or project.mapLayersByName("sys__versiune")
     vfeat = next(ver[0].getFeatures(), None) if ver and ver[0].isValid() else None
     if vfeat is not None and vfeat["tip"] in PROJECT_TYPES:
         tip = vfeat["tip"]
@@ -728,7 +728,7 @@ def _run_impl(iface):
                 created_new = True
                 con = sqlite3.connect(new_path)
                 try:
-                    con.execute('UPDATE "sys__versiune" SET tip = ?', (new_info["tip"],))
+                    con.execute('UPDATE "sys_versiune" SET tip = ?', (new_info["tip"],))
                     con.commit()
                 finally:
                     con.close()

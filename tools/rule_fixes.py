@@ -435,7 +435,7 @@ R19_WARNING = (
 )
 
 # (strat de referinta, strat sursa) -> valoarea campului "Tip_zona" (domeniile
-# _tip_zona / _tip_subzona din sablon, vezi validations/R13_allowed_values.py)
+# sys_tip_zona / sys_tip_subzona din sablon, vezi validations/R13_allowed_values.py)
 _R19_TIP_ZONA = {
     ("RegulamentLocalUrbanism", "ZFPropusa"): "Zonă funcțională",
     ("RegulamentLocalUrbanism", "ZonaReglementareSuplimentara"): "Zonă de reglementare suplimentară / de restricții",

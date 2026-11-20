@@ -23,13 +23,19 @@ class ColumnDataRule(BaseValidationRule):
     """
     Parametrul `rules` este un dict {nume_strat: [coloane_obligatorii]}; un
     element poate fi si un tuple/lista de coloane = grup "sau" (cel putin una
-    completata, ex. ("POT", "POT_detaliu")). O coloana obligatorie care lipseste
-    din strat este raportata ca esec (nu ignorata).
+    completata, ex. ("POT", "POT_detaliu")), sau un dict {"any_of": [[...], ...]}
+    (kit 3.1.1, pachet 2026.11.13): o inregistrare cade DOAR daca TOATE coloanele
+    din TOATE perechile sunt goale (NULL/lipsa/doar spatii); perechile necompletate
+    in unele inregistrari nu sunt raportate. 0 si "Nu este cazul" conteaza ca
+    completate. O coloana obligatorie care lipseste din strat este raportata ca
+    esec (nu ignorata), cu exceptia celor din `optional` ({strat: [coloane]}) -
+    coloane pe care documentatia le poate omite (vezi regula 10).
     """
 
-    def __init__(self, name, rules, description="", rule_id=12):
+    def __init__(self, name, rules, description="", rule_id=12, optional=None):
         super().__init__(name, description, rule_id)
         self.rules = rules
+        self.optional = {k: set(v) for k, v in (optional or {}).items()}
 
     def _validate_layer(self, project, layer_name, columns):
         failures = []
@@ -49,6 +55,9 @@ class ColumnDataRule(BaseValidationRule):
         field_names = {f.name() for f in layer.fields()}
 
         for column in columns:
+            if isinstance(column, dict):
+                failures.extend(self._validate_any_of(layer, layer_name, column["any_of"], field_names))
+                continue
             if isinstance(column, (tuple, list)):
                 failures.extend(self._validate_group(layer, layer_name, column, field_names))
                 continue
@@ -80,6 +89,41 @@ class ColumnDataRule(BaseValidationRule):
             fid=0,
             reason=f"Coloana obligatorie '{column}' lipseste din stratul {layer_name}.",
         )
+
+    def _validate_any_of(self, layer, layer_name, pairs, field_names):
+        """
+        Grup "any_of" (kit 3.1.1): coloanele din toate perechile sunt tratate
+        impreuna; o inregistrare cade doar daca toate sunt goale. Coloanele
+        lipsa din strat sunt raportate, mai putin cele optionale (dar cel putin
+        o coloana trebuie sa existe).
+        """
+        all_columns = [c for pair in pairs for c in pair]
+        optional = self.optional.get(layer_name, set())
+        failures = [
+            self._missing_column_failure(layer_name, c)
+            for c in all_columns
+            if c not in field_names and c not in optional
+        ]
+        present = [c for c in all_columns if c in field_names]
+        if not present:
+            return failures
+        label = ", ".join(present)
+        count = 0
+        request = request_for_fields(layer, present)
+        for feat in layer.getFeatures(request):
+            if count >= MAX_REPORTED:
+                break
+            if all(_is_missing(feat[c]) for c in present):
+                failures.append(
+                    ValidationFailure(
+                        rule_name=self.name,
+                        layer_name=layer_name,
+                        fid=feat.id(),
+                        reason=f"Toate coloanele ({label}) sunt goale (cel putin una trebuie completata).",
+                    )
+                )
+                count += 1
+        return failures
 
     def _validate_group(self, layer, layer_name, group, field_names):
         """

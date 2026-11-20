@@ -60,13 +60,13 @@ de referinta lipsa/neutilizate:
       de continut facuta de aceasta unealta, anuntata in dialogul de
       confirmare - vezi _migrate_stadiu_values().
 
-    - "sys__versiune" (in sabloanele < 3.1.0: "__versiune"): "versiune" si
+    - "sys_versiune" (in sabloanele < 3.1.0: "__versiune"): "versiune" si
       "data" (numarul de schema) sunt sincronizate neconditionat cu cele din
       sablon la fiecare actualizare de pachet; "tip" (PUG/PUZ/PUD/PATJ/PMUD)
       NU e sincronizat - sablonul contine mereu 'PUG' (nu exista un sablon
       per tip de proiect), asa ca suprascrierea neconditionata ar strica
       proiectele PUZ/etc la fiecare actualizare. Un proiect cu vechiul
-      "__versiune" primeste "sys__versiune" (cu "tip" preluat din vechiul
+      "__versiune" primeste "sys_versiune" (cu "tip" preluat din vechiul
       tabel); "__versiune" e apoi eliminat ca tabel de referinta neutilizat -
       vezi _sync_versiune_table().
 
@@ -135,16 +135,18 @@ from .template_paths import (
     TemplateNotFoundError,
     _gpkg_versiune,
     active_copy_outdated,
+    offer_refresh_outdated_active_copy,
     resolve_template_dir,
 )
 
 LOG_TAG = "PUG Tools"
 REF_GROUP_NAME = "REF"
-REF_PREFIXES = ("~", "_", "sys__")  # "sys__" = tabele de sistem (sys__versiune), in grupul REF
-SIRUTA_LAYER = "_siruta"
-VERSIUNE_LAYER = "sys__versiune"
-LEGACY_VERSIUNE_LAYER = "__versiune"  # sabloane < 3.1.0
-STADIU_LOOKUP_LAYER = "_stadiu_plan"
+REF_PREFIXES = ("~", "_", "sys_")  # "sys_" = tabele de sistem (sys_versiune), in grupul REF
+SIRUTA_LAYER = "sys_siruta"
+VERSIUNE_LAYER = "sys_versiune"
+LEGACY_VERSIUNE_LAYERS = ("sys__versiune", "__versiune")  # sabloane 3.1.0 / < 3.1.0
+LEGACY_LOOKUP_PREFIX = "_"  # sabloane < 3.1.1: tabelele de lookup "_zona", "_siruta" etc. (acum "sys_zona", ...)
+STADIU_LOOKUP_LAYER = "sys_stadiu_plan"
 PLANSPATIAL_LAYER = "PlanSpatial"
 
 _LAYER_STYLES_CREATE_SQL = (
@@ -167,7 +169,7 @@ class _AbortUpdate(Exception):
 def package_update_status(project=None):
     """
     (needs_update, message) - True cand versiunea pachetului (tabela
-    "sys__versiune", sau vechiul "__versiune") difera de cea a sablonului
+    "sys_versiune", sau vechiul "__versiune") difera de cea a sablonului
     folosit de "Actualizeaza pachetul", sau pachetul nu are deloc tabel de
     versiune. Folosit de dialogul de rezultate ale validarii pentru a oferi
     butonul "Actualizeaza pachetul". Nu modifica nimic; (False, "") daca
@@ -188,7 +190,7 @@ def package_update_status(project=None):
     package_version = _gpkg_versiune(gpkg_path)
     if package_version is None:
         return True, (
-            "Pachetul nu are tabel de versiune (\"sys__versiune\") - e creat cu un "
+            "Pachetul nu are tabel de versiune (\"sys_versiune\") - e creat cu un "
             f"sablon mai vechi decat cel curent ({template_version})."
         )
     if package_version != template_version:
@@ -387,6 +389,8 @@ def _copy_table_triggers(template_con, target_con, table_name):
     tabelei din sablon - se pierd la DROP TABLE, iar fara ele
     "gpkg_ogr_contents.feature_count" nu mai ramane la zi.
     """
+    if not _table_exists(target_con, "gpkg_ogr_contents"):
+        return  # GPKG creat fara GDAL/OGR (ex. sablonul oficial 3.0.x): triggerele ar referi un tabel inexistent
     tcur = template_con.cursor()
     tcur.execute(
         "SELECT name, sql FROM sqlite_master WHERE type='trigger' AND tbl_name=? AND sql IS NOT NULL",
@@ -423,6 +427,45 @@ def _table_rows_without_fid(con, table_name, columns):
     return set(cur.fetchall())
 
 
+def _legacy_lookup_renames(template_con, target_con):
+    """
+    [(tabel_vechi, tabel_nou, randuri_proprii)] pentru tabelele de lookup din
+    sabloanele < 3.1.1 ("_zona", "_siruta", ...), redenumite in 3.1.1 cu
+    prefixul "sys_" ("sys_zona", ...), pe care proiectul inca le are. Tabelul
+    nou e adaugat din sablon, cel vechi e eliminat (vezi ca tabele de
+    referinta neutilizate); `randuri_proprii` = numarul de randuri (fara
+    "fid") din tabelul vechi care NU exista in cel nou - valori adaugate de
+    utilizator sau diferente fata de lista oficiala, care se pierd. Doar
+    pentru avertizare in dialogul de confirmare.
+    """
+    result = []
+    tcur = template_con.cursor()
+    tcur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    for (new,) in tcur.fetchall():
+        if not new.startswith("sys_") or new == VERSIUNE_LAYER:
+            continue
+        old = LEGACY_LOOKUP_PREFIX + new[len("sys_"):]
+        if not _table_exists(target_con, old):
+            continue
+        if new in ("sys_siruta", "sys_hilucs"):
+            result.append((old, new, 0))  # liste oficiale voluminoase, nu editate de utilizator
+            continue
+        columns = [c for c in _table_column_names(template_con, new) if c != "fid"]
+        old_columns = set(_table_column_names(target_con, old))
+        if columns and all(c in old_columns for c in columns):
+            def _norm(rows):  # ignora spatii/diacritice/majuscule: diferente oficiale vechi, nu valori proprii
+                return {tuple(_strip_diacritics(str(v).strip()) if v is not None else None for v in r) for r in rows}
+
+            extra = len(
+                _norm(_table_rows_without_fid(target_con, old, columns))
+                - _norm(_table_rows_without_fid(template_con, new, columns))
+            )
+        else:
+            extra = 0  # schema complet diferita (ex. "_siruta" < 3.0.3): date de referinta oficiale
+        result.append((old, new, extra))
+    return result
+
+
 def _reference_tables_needing_replacement(template_con, target_con):
     """
     Numele tabelelor de referinta "_*" (nu "__*" - vechiul "__versiune" e tratat
@@ -440,7 +483,7 @@ def _reference_tables_needing_replacement(template_con, target_con):
     tcur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     candidates = [
         name for (name,) in tcur.fetchall()
-        if name.startswith("_") and not name.startswith("__") and _table_exists(target_con, name)
+        if name.startswith("sys_") and name != VERSIUNE_LAYER and _table_exists(target_con, name)
     ]
     needing = []
     for name in candidates:
@@ -517,7 +560,7 @@ def _migrate_stadiu_values(gpkg_path, mapping):
         ds = None
 
 
-# -- caz special: sincronizare continut "sys__versiune" ----------------------
+# -- caz special: sincronizare continut "sys_versiune" ----------------------
 
 def _read_versiune_tip(con, table_name):
     """Valoarea "tip" din primul rand al tabelei, sau None (tabela/coloana/rand lipsa sau gol)."""
@@ -558,7 +601,7 @@ _PROJECT_TIP_RE = re.compile(r"_(\d+)_([^_/\\]+)_")
 def _guess_project_tip(gpkg_path, fallback):
     """
     Deduce tipul de proiect (PUG/PUZ/...) din numele fisierului GPKG.
-    Folosit doar cand proiectul tinta nu are deja un rand in "sys__versiune"
+    Folosit doar cand proiectul tinta nu are deja un rand in "sys_versiune"
     / "__versiune" (proiect vechi/corupt) - in caz normal, valoarea existenta e pastrata
     neschimbata in loc sa fie dedusa. Fallback pe tipul din sablon
     ('PUG') daca numele fisierului nu respecta tiparul asteptat.
@@ -570,11 +613,11 @@ def _guess_project_tip(gpkg_path, fallback):
 def _sync_versiune_table(template_con, target_con, gpkg_path):
     """
     Sincronizeaza "versiune" si "data" (numarul de schema) ale tabelei
-    "sys__versiune" a proiectului cu cele din sablon, neconditionat (la
+    "sys_versiune" a proiectului cu cele din sablon, neconditionat (la
     fiecare actualizare de pachet, indiferent daca tabelele de referinta/RLUD
     au trebuit sau nu modificate) - pastreaza ordinea/numele coloanelor
     proiectului, doar valorile sunt sincronizate. Daca proiectul nu are inca
-    "sys__versiune" (sabloane < 3.1.0, unde tabela se numea "__versiune"),
+    "sys_versiune" (sabloane < 3.1.0, unde tabela se numea "__versiune"),
     tabela e creata din sablon, iar "tip" e preluat din vechiul "__versiune";
     acesta din urma e eliminat mai tarziu, ca tabel de referinta neutilizat.
 
@@ -598,7 +641,9 @@ def _sync_versiune_table(template_con, target_con, gpkg_path):
 
     # tipul din vechiul "__versiune" (sabloane < 3.1.0) trebuie citit INAINTE
     # ca acel tabel sa fie eliminat ca tabel de referinta neutilizat.
-    legacy_tip = _read_versiune_tip(target_con, LEGACY_VERSIUNE_LAYER)
+    legacy_tip = next(
+        (t for t in (_read_versiune_tip(target_con, n) for n in LEGACY_VERSIUNE_LAYERS) if t), None
+    )
 
     if not _table_exists(target_con, VERSIUNE_LAYER):
         _create_table_from_template(template_con, target_con, VERSIUNE_LAYER)
@@ -637,7 +682,7 @@ def _sync_versiune_table(template_con, target_con, gpkg_path):
 
 def _versiune_needs_sync(template_con, target_con):
     """
-    True daca _sync_versiune_table ar schimba ceva: tabela "sys__versiune"
+    True daca _sync_versiune_table ar schimba ceva: tabela "sys_versiune"
     lipseste din proiect, nu are exact un rand sau "versiune"/"data" difera de
     sablon ("tip" nu se sincronizeaza niciodata - vezi _sync_versiune_table).
     """
@@ -1894,6 +1939,8 @@ def _run_impl(iface):
     gpkg_path = ps_layers[0].source().split("|")[0]
     project_siruta = _project_siruta(ps_layers[0])
 
+    if not offer_refresh_outdated_active_copy(iface.mainWindow(), "Actualizeaza pachetul"):
+        return False
     try:
         template_dir = resolve_template_dir(ensure_active_copy=True)
     except TemplateNotFoundError as exc:
@@ -1925,7 +1972,7 @@ def _run_impl(iface):
     # subset care chiar lipseste din gpkg si trebuie copiat din sablon (restul
     # din missing_ref_tables exista deja ca tabel, doar trebuie adaugat ca
     # strat in proiect - vezi mai jos, dupa project.read()).
-    # "sys__versiune" NU se copiaza generic: _sync_versiune_table o creeaza,
+    # "sys_versiune" NU se copiaza generic: _sync_versiune_table o creeaza,
     # pastrand "tip" din vechiul "__versiune" (o copie din sablon ar aduce 'PUG').
     tables_to_copy = [
         t for t in missing_ref_tables if t not in target_tables and t != VERSIUNE_LAYER
@@ -1959,7 +2006,8 @@ def _run_impl(iface):
         rlud_missing = _rlud_missing_columns(template_con_probe, target_con_probe)
         stadiu_value_map = _stadiu_value_map(template_con_probe, target_con_probe)
         stadiu_rows_to_migrate = _count_stadiu_rows(target_con_probe, stadiu_value_map)
-        legacy_versiune_present = _table_exists(target_con_probe, LEGACY_VERSIUNE_LAYER)
+        legacy_lookup_renames = _legacy_lookup_renames(template_con_probe, target_con_probe)
+        legacy_versiune_present = [n for n in LEGACY_VERSIUNE_LAYERS if _table_exists(target_con_probe, n)]
         versiune_needs_sync = _versiune_needs_sync(template_con_probe, target_con_probe)
         styles_to_update = _styles_needing_update(
             template_con_probe, target_con_probe, target_tables | set(tables_to_copy)
@@ -2002,9 +2050,26 @@ def _run_impl(iface):
     versiune_note = ""
     if legacy_versiune_present:
         versiune_note = (
-            "- Tabela \"__versiune\" (sablon < 3.1.0) va fi inlocuita cu \"sys__versiune\" "
-            "(tipul proiectului este pastrat).\n"
+            f"- Tabela {' / '.join(chr(34) + n + chr(34) for n in legacy_versiune_present)} "
+            "(sablon < 3.1.1) va fi inlocuita cu \"sys_versiune\" (tipul proiectului este pastrat).\n"
         )
+
+    rename_note = ""
+    if legacy_lookup_renames:
+        rename_note = (
+            f"- Sablonul 3.1.1 a redenumit tabelele de lookup cu prefixul \"sys_\": "
+            f"{len(legacy_lookup_renames)} tabele (ex. \"_zona\" -> \"sys_zona\") vor fi "
+            "adaugate sub numele nou, iar cele vechi eliminate; straturile din grupul REF "
+            "si widget-urile din formulare sunt refacute. Nu sunt date introduse de utilizator.\n"
+        )
+        if any(e for _o, _n, e in legacy_lookup_renames):
+            rename_note += (
+                "  ATENTIE: tabelele " + ", ".join(
+                    f"\"{o}\" ({e} rand(uri) proprii)" for o, _n, e in legacy_lookup_renames if e
+                )
+                + " contin valori care nu exista in lista oficiala 3.1.1 - ele se pierd la "
+                "eliminarea tabelului vechi (valorile din straturile de continut NU sunt atinse).\n"
+            )
 
     rlud_retype_note = ""
     if rlud_columns_to_retype:
@@ -2064,13 +2129,13 @@ def _run_impl(iface):
             f"({', '.join(missing_ref_tables)}).\n"
         )
     for note in (
-        ref_uat_note, replace_note, stadiu_note, rlud_retype_note, rlud_note, versiune_note
+        ref_uat_note, replace_note, rename_note, stadiu_note, rlud_retype_note, rlud_note, versiune_note
     ):
         if note:
             change_lines.append(note)
     if versiune_needs_sync:
         change_lines.append(
-            "- Numarul de versiune al pachetului (tabela \"sys__versiune\") va fi actualizat "
+            "- Numarul de versiune al pachetului (tabela \"sys_versiune\") va fi actualizat "
             "la cel al sablonului curent.\n"
         )
     if styles_to_update:

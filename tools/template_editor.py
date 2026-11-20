@@ -66,8 +66,8 @@ _BASELINE_KEY = "template_edit/baseline"
 
 # straturi excluse de la verificarea "featureuri noi" si de la salvarea
 # stilului - contin date de referinta/lookup, populate intentionat.
-# "sys__" = tabele de sistem (ex. "sys__versiune", sablon >= 3.1.0): fara stil.
-_REFERENCE_PREFIXES = ("~", "_", "sys__")
+# "sys_" = tabele de sistem (ex. "sys_versiune", sablon >= 3.1.0): fara stil.
+_REFERENCE_PREFIXES = ("~", "_", "sys_")
 
 # acelasi nume de grup folosit de project_loader.py/package_updater.py
 # pentru straturile de referinta.

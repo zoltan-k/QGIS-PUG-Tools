@@ -144,7 +144,7 @@ def bundled_exists():
 
 
 def _gpkg_versiune(gpkg_path):
-    """Numarul de versiune (str) din tabela "sys__versiune" (sabloane >= 3.1.0)
+    """Numarul de versiune (str) din tabela "sys_versiune" (sabloane >= 3.1.0)
     sau "__versiune" (sabloane mai vechi) a unui gpkg, sau None daca
     fisierul/tabela nu exista ori nu poate fi citita."""
     if not os.path.isfile(gpkg_path):
@@ -153,7 +153,7 @@ def _gpkg_versiune(gpkg_path):
         con = sqlite3.connect(gpkg_path)
         try:
             cur = con.cursor()
-            for table in ("sys__versiune", "__versiune"):
+            for table in ("sys_versiune", "sys__versiune", "__versiune"):
                 try:
                     cur.execute(f'SELECT versiune FROM "{table}" LIMIT 1')
                 except sqlite3.OperationalError:
@@ -170,7 +170,7 @@ def _gpkg_versiune(gpkg_path):
 def active_copy_outdated():
     """
     True daca exista o copie activa a sablonului SI numarul de versiune din
-    tabela "sys__versiune" a sablonului din fabrica (bundled cu plugin-ul)
+    tabela "sys_versiune" a sablonului din fabrica (bundled cu plugin-ul)
     difera de cel al copiei active - caz tipic dupa o actualizare de plugin
     care aduce o schema noua de sablon (ex. schimbarea structurii "_siruta"
     in 3.0.3), dar copia activa (cea folosita efectiv de "Proiect nou PUG"
@@ -187,6 +187,48 @@ def active_copy_outdated():
     if bundled_versiune is None or active_versiune is None:
         return False
     return bundled_versiune != active_versiune
+
+
+def current_template_version():
+    """Versiunea (str, ex. "3.1.1") sablonului folosit efectiv acum (suprascris/activ/din fabrica), sau None."""
+    try:
+        directory = resolve_template_dir(ensure_active_copy=False)
+    except TemplateNotFoundError:
+        return None
+    return _gpkg_versiune(directory + GPKG_RELATIVE)
+
+
+def offer_refresh_outdated_active_copy(parent, title):
+    """
+    Cand copia activa a sablonului (din profilul QGIS) e mai veche decat sablonul
+    din fabrica (ex. dupa trecerea la 3.1.1, cu tabelele "sys_*"), intreaba
+    utilizatorul daca o reimprospateaza acum - altfel "Proiect nou PUG" /
+    "Actualizeaza pachetul" ar folosi in continuare schema veche. Nu se
+    intreaba cand sablonul e suprascris manual (override) sau nu exista copie
+    activa. Returneaza False doar daca utilizatorul alege "Anuleaza".
+    """
+    from qgis.PyQt.QtWidgets import QMessageBox
+
+    if override_template_dir() or not active_copy_outdated():
+        return True
+    answer = QMessageBox.question(
+        parent,
+        title,
+        "Sablonul activ (copia din profilul QGIS, folosita de plugin) este dintr-o versiune "
+        f"mai veche ({_gpkg_versiune(active_copy_gpkg_path())}) decat cel inclus in plugin "
+        f"({_gpkg_versiune(bundled_gpkg_path())}).\n\n"
+        "Da = reimprospateaza acum copia activa din sablonul inclus in plugin (RECOMANDAT; "
+        "modificarile personalizate facute prin \"Editeaza sablonul\" se pierd).\n"
+        "Nu = continua cu sablonul activ vechi.\n"
+        "Anuleaza = opreste operatia.",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
+        QMessageBox.StandardButton.Yes,
+    )
+    if answer == QMessageBox.StandardButton.Cancel:
+        return False
+    if answer == QMessageBox.StandardButton.Yes:
+        refresh_active_copy()
+    return True
 
 
 def delete_active_copy():

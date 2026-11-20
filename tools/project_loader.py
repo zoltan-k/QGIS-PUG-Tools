@@ -86,11 +86,11 @@ from .template_paths import (
     GPKG_FOLDER,
     GPKG_RELATIVE,
     TemplateNotFoundError,
-    active_copy_outdated,
+    offer_refresh_outdated_active_copy,
     resolve_template_dir,
 )
 
-SIRUTA_LAYER = "_siruta"
+SIRUTA_LAYER = "sys_siruta"
 
 REF_GROUP_NAME = "REF"
 V_LAYER_REQ = ["~REF_SZF", "~REF_ZRS_D"]
@@ -98,17 +98,17 @@ DO_NOT_IMPORT = V_LAYER_REQ + ["layer_styles"]
 
 # straturi de referinta - NU trebuie sa aiba stil salvat in layer_styles
 # (nici sablonul nu are); acelasi prefix folosit in template_editor.py.
-# "sys__" = tabele de sistem (sys__versiune, sablon >= 3.1.0): strat de referinta in grupul REF.
-REFERENCE_PREFIXES = ("~", "_", "sys__")
+# "sys_" = tabele de sistem (sys_versiune, sablon >= 3.1.0): strat de referinta in grupul REF.
+REFERENCE_PREFIXES = ("~", "_", "sys_")
 
 LOG_TAG = "PUG Tools"
 
-VERSIUNE_LAYER = "sys__versiune"
+VERSIUNE_LAYER = "sys_versiune"
 
 
 def _set_versiune_tip(gpkg_path, tip):
     """
-    Sablonul bundled are mereu tabela "sys__versiune" cu tip='PUG' (un singur
+    Sablonul bundled are mereu tabela "sys_versiune" cu tip='PUG' (un singur
     rand) - actualizata aici la tipul de proiect ales de utilizator
     (PUG/PUZ/PUD/PATJ/PMUD), scriind direct in fisier inainte ca acesta sa
     fie deschis ca straturi QGIS.
@@ -282,21 +282,13 @@ def run(iface):
 def _run_impl(iface):
     _set_romanian_locale()
 
+    if not offer_refresh_outdated_active_copy(iface.mainWindow(), "Proiect nou PUG"):
+        return
     try:
         default_package = resolve_template_dir(ensure_active_copy=True)
     except TemplateNotFoundError as exc:
         raise _AbortLoad(str(exc))
     default_gpkg = default_package + GPKG_RELATIVE
-
-    if active_copy_outdated():
-        QMessageBox.information(
-            iface.mainWindow(),
-            "Proiect nou PUG",
-            "Sablonul activ (folosit pentru acest proiect) pare sa fie dintr-o "
-            "versiune mai veche decat cel inclus in plugin.\n\n"
-            "Recomandat: deschide \"Despre PUG Tools\" si apasa \"Actualizeaza\" la "
-            "sectiunea \"Copie activa\" a sablonului, apoi reia crearea proiectului.",
-        )
 
     uri_sirutas = f"{default_gpkg}|layername={SIRUTA_LAYER}"
     _sirutas = QgsVectorLayer(uri_sirutas, SIRUTA_LAYER, "ogr")
@@ -437,7 +429,7 @@ def _run_impl(iface):
         l_name = ogr_layer.GetName()
         if l_name in DO_NOT_IMPORT or l_name == uat_boundary.LAYER_NAME:
             continue
-        if l_name.startswith(("~REF", "_", "sys__")):
+        if l_name.startswith(("~REF", "_", "sys_")):
             ref_layers.append(l_name)
         else:
             regular_layers.append(l_name)

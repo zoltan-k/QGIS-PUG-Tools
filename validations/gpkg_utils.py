@@ -103,6 +103,13 @@ def get_layer_or_open(project, layer_name, gpkg_path=None):
 
     path = gpkg_path or find_gpkg_path(project)
     layer = QgsVectorLayer(f"{path}|layername={layer_name}", layer_name, "ogr")
+    if not layer.isValid() and layer_name.startswith("sys_"):
+        # pachet creat cu un sablon < 3.1.1: tabelele de lookup se numeau "_zona", "_siruta" etc.
+        legacy_name = "_" + layer_name[len("sys_"):]
+        legacy = project.mapLayersByName(legacy_name)
+        if len(legacy) == 1:
+            return _localize_layer(legacy[0])
+        layer = QgsVectorLayer(f"{path}|layername={legacy_name}", legacy_name, "ogr")
     if not layer.isValid():
         raise ValueError(
             f"Stratul '{layer_name}' nu a fost gasit nici in proiect, nici "

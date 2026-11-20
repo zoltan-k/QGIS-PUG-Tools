@@ -102,15 +102,17 @@ register_rule(
             "ZonaReglementareSuplimentara": ["Cod_ZRS", "Cod_ZRS_D", "Tip_ZRS_D", "Arie_ZRS", "Sursa_ZRS", "Detalii_sursa_ZRS", "Data_aprob", "Data_exp"],
             "RegulamentLocalUrbanism": ["Cod_ZF_ZRS", "Tip_zona", "Tip_ZF_ZRS", "Desc_ZF_ZRS"],
             "RegulamentLocalUrbanismDetaliat": ["Tip_zona", "Tip_SZF_ZRS_D", "Desc_SZF_ZRS_D",
-                                               # kit 3.0.4+: campul principal SAU cel de detaliu
-                                               ("POT", "POT_detaliu"), ("CUT", "CUT_detaliu"),
-                                               ("Clad_Hmax", "Clad_Hmax_detaliu")],
+                                               # kit 3.1.1 (pachet 2026.11.13): o inregistrare cade doar daca TOATE
+                                               # cele sase coloane sunt goale; 0 / "Nu este cazul" conteaza completate
+                                               {"any_of": [["POT", "POT_detaliu"], ["CUT", "CUT_detaliu"],
+                                                           ["Clad_Hmax", "Clad_Hmax_detaliu"]]}],
             "LimitaIntravilanExistenta": ["SIRUTA", "Judet", "UAT", "Revizie", "Sursa_revizie", "ArieINT"],
             "LimitaIntravilanPropusa": ["SIRUTA", "Judet", "UAT", "Revizie", "ArieINT"],
             "ReteleTehnicoEdilitare": ["Cod_RTE", "Tip_RTE", "Subtip_RTE", "Stadiu_RTE", "Lungime"],
             "CaiComunicatie": ["Tip_CCom", "Subtip_CCom", "Stadiu_CCom", "Lungime"],
             "ReglementariUrbanisticePunct": ["ID_RU", "Tip_RU", "Detaliu_RU"],
         },
+        optional={"RegulamentLocalUrbanismDetaliat": ["POT_detaliu", "CUT_detaliu", "Clad_Hmax_detaliu"]},
     )
 )
 
@@ -272,14 +274,18 @@ register_rule(
 register_rule(
     UniqueValuesRule(
         rule_id=17,
-        name="Unicitate cod/tip (RLU, RLUD)",
-        description="Se verifica daca valorile din coloanele configurate sunt unice in cadrul stratului.",
+        name="Unicitate coduri si tip corespunzator (RLU, RLUD)",
+        description=(
+            "Se verifica daca codurile din RegulamentLocalUrbanism (Cod_ZF_ZRS) si "
+            "RegulamentLocalUrbanismDetaliat (Cod_SZF_ZRS_D, Tip_SZF_ZRS_D) sunt unice si daca "
+            "Tip_ZF_ZRS / Tip_zona din RegulamentLocalUrbanism corespund codului din nomenclatorul sys_zona."
+        ),
         rules={
-            "RegulamentLocalUrbanism": ["Cod_ZF_ZRS", "Tip_ZF_ZRS"],
-            # Nota: sursa publicata foloseste "Cod_ZF_ZRS_D"/"Tip_ZF_ZRS_D", care nu
-            # exista in schema acestui strat (campurile reale sunt "Cod_SZF_ZRS_D"/
-            # "Tip_SZF_ZRS_D", ca in R19/R22) - corectat mai jos.
-            "RegulamentLocalUrbanismDetaliat": ["Cod_SZF_ZRS_D", "Tip_SZF_ZRS_D"],
+            "RegulamentLocalUrbanism": {
+                "unique": ["Cod_ZF_ZRS"],
+                "type_of": {"Cod_ZF_ZRS": ["Tip_ZF_ZRS", "Tip_zona"]},
+            },
+            "RegulamentLocalUrbanismDetaliat": {"unique": ["Cod_SZF_ZRS_D", "Tip_SZF_ZRS_D"]},
         },
     )
 )

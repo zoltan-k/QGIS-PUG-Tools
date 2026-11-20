@@ -326,7 +326,9 @@ class AboutDialog(QDialog):
 
         layout.addWidget(_make_separator())
 
-        layout.addWidget(_bold(QLabel("Sablon PUG")))
+        template_version = template_paths.current_template_version()
+        title = "Sablon PUG" + (f" - versiunea curenta: V{template_version}" if template_version else "")
+        layout.addWidget(_bold(QLabel(title)))
         layout.addLayout(self._build_template_rows())
 
         layout.addWidget(_make_separator())

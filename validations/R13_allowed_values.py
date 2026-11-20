@@ -22,27 +22,27 @@ from .base import BaseValidationRule, ValidationFailure
 from .gpkg_utils import MAX_REPORTED, field_value_set, get_layer, get_layer_or_open, is_null, request_for_fields
 
 MATCH_KEY_SOURCES = {
-    "NivelPlan": ("_nivel_plan", "definitie"),
-    "Cod_ZF_ZRS": ("_zona", "cod"),
+    "NivelPlan": ("sys_nivel_plan", "definitie"),
+    "Cod_ZF_ZRS": ("sys_zona", "cod"),
     # "Tip_ZF_ZRS" e valoarea descriptiva a zonei/subzonei (ex. "Zonă centrală",
     # "Terenuri agricole"), stocata in coloanele Tip_ZF/Tip_ZRS/Tip_ZF_ZRS - vine
-    # din "_zona.definitie" (51 valori posibile), NU din "_tip_zona.definitie"
+    # din "sys_zona.definitie" (51 valori posibile), NU din "sys_tip_zona.definitie"
     # (doar 2 valori generice: "Zonă funcțională"/"Zonă de reglementare
     # suplimentară / de restricții" - acela e mapat separat la cheia "TipZona",
     # folosita pentru RegulamentLocalUrbanism.Tip_zona). Confirmat gresit
     # impotriva unui proiect PUG real, unde ~295 inregistrari valide erau
     # respinse din cauza acestei mapari incorecte.
-    "Tip_ZF_ZRS": ("_zona", "definitie"),
-    "Hilucs": ("_hilucs", "cod"),
-    "TipZona": ("_tip_zona", "definitie"),
-    "TipSubzona": ("_tip_subzona", "definitie"),
-    "TipRTE": ("_tip_rte", "definitie"),
-    "SubtipRTE": ("_subtip_rte", "definitie"),
-    "StadiuRTE": ("_stadiu_rte", "definitie"),
-    "TipCCom": ("_tip_ccom", "definitie"),
-    "SubtipCCom": ("_subtip_ccom", "definitie"),
-    "StadiuCCom": ("_stadiu_ccom", "definitie"),
-    "TipRU": ("_tip_ru", "definitie"),
+    "Tip_ZF_ZRS": ("sys_zona", "definitie"),
+    "Hilucs": ("sys_hilucs", "cod"),
+    "TipZona": ("sys_tip_zona", "definitie"),
+    "TipSubzona": ("sys_tip_subzona", "definitie"),
+    "TipRTE": ("sys_tip_rte", "definitie"),
+    "SubtipRTE": ("sys_subtip_rte", "definitie"),
+    "StadiuRTE": ("sys_stadiu_rte", "definitie"),
+    "TipCCom": ("sys_tip_ccom", "definitie"),
+    "SubtipCCom": ("sys_subtip_ccom", "definitie"),
+    "StadiuCCom": ("sys_stadiu_ccom", "definitie"),
+    "TipRU": ("sys_tip_ru", "definitie"),
 }
 
 
