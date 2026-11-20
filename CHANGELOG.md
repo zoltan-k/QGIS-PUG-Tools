@@ -8,6 +8,13 @@ rules v3.0.0+).
 Only the milestones that are still relevant are listed. Earlier development
 versions (1.x) are summarized at the bottom.
 
+## 2.2.6.0
+- Template updated to the official 3.1.1 (validation package 2026.11.13): lookup tables are now `sys_*` (was `_*`), version table `sys_versiune`; "Despre" shows "Sablon PUG - versiunea curenta: V3.1.1".
+- "Actualizeaza pachetul" migrates older projects (3.0.x / 3.1.0) to the new names, keeps the project type and all content data, warns when an old lookup table held values missing from the official list, and offers to refresh an outdated active template copy (also offered by "Proiect nou PUG"). `_*` tables of older projects are still recognised.
+- Rule 10: `POT_detaliu`, `CUT_detaliu`, `Clad_Hmax_detaliu` of `RegulamentLocalUrbanismDetaliat` are optional; the plugin's `layer_styles` table is no longer counted as a missing template layer.
+- Rule 12: in `RegulamentLocalUrbanismDetaliat` a record fails only if all of POT/CUT/Clad_Hmax and their `_detaliu` columns are empty (0 / "Nu este cazul" count as filled).
+- Rule 17: uniqueness of `Cod_ZF_ZRS` (RLU), `Cod_SZF_ZRS_D` and `Tip_SZF_ZRS_D` (RLUD); each RLU code must exist in `sys_zona` with matching `Tip_ZF_ZRS` and `Tip_zona`.
+
 ## 2.2.5.2
 - Fix: "Actualizeaza pachetul" no longer drops every layer of the REF group when it moves the group to the end of the tree.
 - "Consolideaza straturile" now also merges data layers whose source table is named differently (for example a "Save Features As" export); layers it cannot move are listed in the dialog, and merged layers get the main GPKG default style.
